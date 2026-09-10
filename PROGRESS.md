@@ -26,7 +26,7 @@ Strategy: vertical slices, reuse proven whopclip core (ported, not rewritten).
 ## Decisions log
 - Reuse whopclip pipeline logic by porting into services/ (proven on real runs).
 - SQLite default, Postgres via DATABASE_URL. No Redis required (DB-backed queue).
-- No Docker daemon here: Dockerfiles shipped, build-verification marked KNOWN LIMITATION.
+- Docker images build green in CI (backend + frontend, 2026-09-10). No daemon on Termux/homie; run images on real hardware.
 - No paid APIs anywhere; heuristic fallbacks visible in UI/metadata ("AI unavailable" labeling).
 
 ## Known limitations
