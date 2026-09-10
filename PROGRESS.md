@@ -126,3 +126,13 @@ prompt versions (prompts/ + stored version per result).
 5. §78 frontend tests (vitest) + CI step.
 6. §79 Docker build verify — BLOCKED here (no daemon); documented limitation.
 7. Docs already cover the rest; OpenAPI auto-generated.
+
+## Gap closure (2026-09-10, all verified)
+1. Ranking profiles: 6 presets + custom merge/renormalize, persisted per score.
+2. Metadata variants: LLM 3-titles + description/caption/hashtags/keywords,
+   heuristic fallback, stored per clip, choosable in review.
+3. Project import endpoint + archive; pagination on projects/jobs.
+4. Rate limiting (token bucket, 429s) + password auth (scrypt, tokens, rotation
+   on change, logout revocation, cross-user isolation tested).
+5. Vitest (5 green) + CI test step. CI fully green.
+6. Homie live: API+UI :8001 (systemd), auth enforced, paginated, UI 200.
