@@ -136,3 +136,19 @@ prompt versions (prompts/ + stored version per result).
    on change, logout revocation, cross-user isolation tested).
 5. Vitest (5 green) + CI test step. CI fully green.
 6. Homie live: API+UI :8001 (systemd), auth enforced, paginated, UI 200.
+
+## Merge: whopclip campaigns -> RepurposeAI (2026-09-10)
+- New `campaigns` table (migration 0004) + policy service (P0, blockers,
+  bounds, project-config mapping, stdlib-pure).
+- Pipeline applies campaign rules per job; strict gate refuses blocked
+  production runs (dry-run bypass explicit, never submittable).
+- Campaign validator (technical READY vs submission-ready) as service +
+  API + CLI + panel-equivalent UI.
+- WeTransfer ingest vendored (transferwee, BSD attributed).
+- API: campaigns CRUD, blockers, validate, per-campaign clips.
+- MCP: get_campaign. CLI: campaign list/create/check/validate.
+- UI: Campaigns list + detail (policy, blockers, brief editor, verify
+  toggle, gated generate), nav entry.
+- whopclip repo stays untouched (frozen); homie whopclip panel still on :8000
+  until you confirm retirement (frees ~100MB+ RAM on the 2GB box).
+- Verified: ruff 0, mypy 0, 26 pytest green, UI 200, API authed flow live.
