@@ -24,13 +24,27 @@ auto-selects the device from config.
 
 `docker-compose.prod.yml` adds Postgres 16 (set `DB_PASSWORD`, point
 `DATABASE_URL` at it, run `alembic upgrade head` once against it).
+## Continuous deployment (homie)
 
-## Continuous deployment (optional)
+GitHub-hosted runners can't SSH into homie (Tailscale-only IP), so homie runs
+**pull-based CD**: a systemd user timer polls every minute and redeploys when
+`origin/main`'s SHA changes.
 
-`.github/workflows/cd.yml` syncs `main` to homie on every push and restarts
-the service. It runs only when these repo secrets exist (otherwise skipped):
+Installation (one-time, on homie):
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/repurposeai-cd.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now repurposeai-cd.timer
+```
 
-- `HOMIE_HOST`, `HOMIE_USER`, `HOMIE_SSH_KEY` (ed25519, no passphrase)
+`deploy/pull_deploy.sh` then: fetches `origin/main` (via GitHub deploy key, see
+below), `git reset --hard` (tracked files only; `.venv`, `data/`, secrets kept),
+`pip install -e .`, `alembic upgrade head` against `data/rpa.db`, and restarts
+the service. The timer needs the repo clone's `origin` set to the SSH remote:
 
-The job runs migrations, reinstalls the package, and health-checks
-`/api/system/health` before finishing.
+```bash
+git remote set-url origin git@github.com:ammar0xff/repurposeai.git
+# + a read-only GitHub deploy key installed at ~/.ssh/id_repurposeai_cd
+#   with ~/.ssh/config: Host github.com → IdentityFile ~/.ssh/id_repurposeai_cd
+```

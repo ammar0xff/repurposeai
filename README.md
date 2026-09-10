@@ -1,7 +1,6 @@
 # RepurposeAI — local-first AI video repurposing
 
 ![ci](https://github.com/ammar0xff/repurposeai/actions/workflows/ci.yml/badge.svg)
-![cd](https://github.com/ammar0xff/repurposeai/actions/workflows/cd.yml/badge.svg)
 
 Long video in, ranked captioned vertical clips out. No paid APIs required.
 
