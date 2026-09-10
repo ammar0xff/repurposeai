@@ -152,3 +152,14 @@ prompt versions (prompts/ + stored version per result).
 - whopclip repo stays untouched (frozen); homie whopclip panel still on :8000
   until you confirm retirement (frees ~100MB+ RAM on the 2GB box).
 - Verified: ruff 0, mypy 0, 26 pytest green, UI 200, API authed flow live.
+
+## Continuous deployment (homie)
+
+- GitHub runners can't reach homie (Tailscale-only), so CD is PULL-based:
+  systemd user timer `repurposeai-cd.timer` (1 min) runs
+  `deploy/pull_deploy.sh` -> fetch/reset origin/main, pip install, alembic,
+  restart. Fetch/auth uses read-only GitHub deploy key at `~/.ssh/id_repurposeai_cd`.
+- Fix: homie DB was born via `init_db()` (create_all) so it had tables but no
+  `alembic_version`; script now stamps head to adopt such DBs before upgrading.
+- Setup (one-time): copy deploy/repurposeai-cd.{service,timer}, enable timer,
+  origin remote -> SSH, deploy key installed.
