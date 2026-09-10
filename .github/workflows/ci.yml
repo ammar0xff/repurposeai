@@ -38,7 +38,9 @@ jobs:
           DATABASE_URL=sqlite:////tmp/ci.db STORAGE_PATH=/tmp/ci_store \
             python3 scripts/e2e_api.py http://127.0.0.1:8000 /tmp/demo.mp4 \
             '{"clip_count":2,"min_duration":10,"max_duration":30}'
-          echo "--- api.log tail ---"; tail -n 40 /tmp/api.log
+      - name: api log (always)
+        if: always()
+        run: tail -n 60 /tmp/api.log || true
   frontend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: web } }
