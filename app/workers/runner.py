@@ -29,25 +29,32 @@ class Worker:
             return list(self._threads)
 
     def submit(self, job_id: str):
+        # No session here: the job thread owns its session (created below).
+        # Sharing or prematurely closing sessions across threads corrupts
+        # SQLAlchemy state (IllegalStateChangeError).
         db = get_session_factory()()
-        try:
-            with self._lock:
-                self._threads = {k: v for k, v in self._threads.items() if v.is_alive()}
-                if len(self._threads) >= self.max_jobs:
-                    return  # stays queued; dispatcher picks it up
-                pipe = self.make_pipeline(db)
-                th = threading.Thread(target=self._guarded, args=(pipe, job_id),
-                                      daemon=True, name=f"rpa-{job_id[:8]}")
-                self._threads[job_id] = th
-                th.start()
-        finally:
-            db.close()
+        with self._lock:
+            self._threads = {k: v for k, v in self._threads.items() if v.is_alive()}
+            if len(self._threads) >= self.max_jobs:
+                db.close()
+                return  # stays queued; dispatcher picks it up
+            pipe = self.make_pipeline(db)
+            th = threading.Thread(target=self._guarded, args=(pipe, job_id, db),
+                                  daemon=True, name=f"rpa-{job_id[:8]}")
+            self._threads[job_id] = th
+            th.start()
 
-    def _guarded(self, pipe, job_id: str):
+    def _guarded(self, pipe, job_id: str, db=None):
         try:
             pipe.run(job_id)
         except Exception as e:  # noqa: BLE001 - worker must never die on job errors
             log.error("worker crash on %s: %s", job_id, e)
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:  # noqa: BLE001 - best-effort cleanup
+                    pass
 
     def cancel(self, job_id: str):
         from ..models.entities import ProcessingJob
