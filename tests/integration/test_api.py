@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.api.deps import db_session
 from app.main import app
 from app.models.db import get_session_factory, init_db
+import uuid as _uuid
 
 init_db(TEST_URL)
 
@@ -66,8 +67,6 @@ def test_system_endpoints():
 def test_openapi_present():
     assert client.get("/api/openapi.json").status_code == 200
 
-
-import uuid as _uuid
 
 def _authed():
     u = 'u' + _uuid.uuid4().hex[:8]

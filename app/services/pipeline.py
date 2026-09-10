@@ -306,9 +306,9 @@ class Pipeline:
                             render_profile=profile, validation=vrep)
                 self.db.add(clip)
                 try:
-                    from .metadata import generate as _genmd
                     from ..models.entities import GeneratedMetadata as _GM
                     from ..providers.llm import get_llm_provider as _gllm
+                    from .metadata import generate as _genmd
                     md = _genmd(r.text, _gllm(cfg.get("ai_provider") or self.s.llm_provider),
                                 cfg.get("ai_model", self.s.llm_model),
                                 cfg.get("hashtags", []))
