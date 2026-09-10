@@ -1,7 +1,8 @@
 # CD: sync main to homie and restart services.
 # One-time setup (repo Settings -> Secrets and variables -> Actions):
 #   HOMIE_HOST (e.g. 100.112.4.10), HOMIE_USER (ammar), HOMIE_SSH_KEY (private key).
-# Skipped automatically when secrets are absent.
+# Runs only when the repo variable DEPLOY_ENABLED is 'true' (set it after
+# adding secrets HOMIE_HOST, HOMIE_USER, HOMIE_SSH_KEY). Otherwise skipped.
 name: cd
 on:
   push:
@@ -9,7 +10,7 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    if: ${{ secrets.HOMIE_SSH_KEY != '' }}
+    if: vars.DEPLOY_ENABLED == 'true' 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
