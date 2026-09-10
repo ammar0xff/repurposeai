@@ -1,0 +1,7 @@
+[Unit]
+Description=RepurposeAI pull-based CD run-once (oneshot for repurposeai-cd.timer)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/repurposeai/deploy/pull_deploy.sh
