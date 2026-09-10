@@ -4,6 +4,7 @@ Exit 0 only when export manifest has >=1 clip."""
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 
 BASE, MEDIA = sys.argv[1], sys.argv[2]
@@ -23,7 +24,6 @@ def call(method, path, body=None, files=None):
     elif body is not None:
         data = json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}
-    import urllib.error
     req = urllib.request.Request(BASE + path, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
