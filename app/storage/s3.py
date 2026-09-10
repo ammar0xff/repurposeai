@@ -44,7 +44,7 @@ class S3Storage(StorageProvider):
         try:
             self.s3.head_object(Bucket=self.bucket, Key=self._k(key))
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - boto3 optional; any head failure means absent
             return False
 
     def list(self, prefix: str) -> list[str]:

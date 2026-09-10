@@ -25,7 +25,7 @@ def score_candidates(cands: list, words: list, duration: float, n: int = 5) -> l
                        "hook_text": c.get("hook_text", ""),
                        "reason": "heuristic", "source": "heuristic"})
     scored.sort(key=lambda m: -m["score"])
-    picked = []
+    picked: list = []
     for m in scored:
         if all(m["end"] <= p["start"] or m["start"] >= p["end"] for p in picked):
             picked.append(m)

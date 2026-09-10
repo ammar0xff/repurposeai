@@ -6,7 +6,7 @@ import sys
 from .config.settings import get_settings
 from .core.logging import setup
 from .models.db import get_session_factory, init_db
-from .services.pipeline import Pipeline, STAGES
+from .services.pipeline import Pipeline
 from .storage.local import LocalFilesystemStorage
 
 
@@ -22,10 +22,10 @@ def _fmt(obj, as_json: bool):
 
 
 def cmd_init(a):
-    from pathlib import Path
-    from .models.entities import Project
+
     from .core.ids import new_id
-    s, db, _ = _ctx()
+    from .models.entities import Project
+    _, db, _ = _ctx()
     init_db()
     p = Project(id=new_id(), title=a.title, description=a.description or "",
                 config=json.loads(a.config or "{}"))
@@ -44,8 +44,8 @@ def _project(db, pid: str):
 
 
 def _job_for(db, pipe, pid: str, params: dict):
-    from .models.entities import ProcessingJob
     from .core.ids import new_id
+    from .models.entities import ProcessingJob
     j = ProcessingJob(id=new_id(), project_id=pid, status="running", params=params)
     db.add(j)
     db.commit()
@@ -53,8 +53,7 @@ def _job_for(db, pipe, pid: str, params: dict):
 
 
 def cmd_ingest(a):
-    from .models.entities import Project
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     j = _job_for(db, pipe, p.id, {"source": a.source})
     key = pipe.ingest(j, p, a.source)
@@ -84,7 +83,7 @@ def cmd_transcribe(a):
 
 
 def cmd_candidates(a):
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     j = _job_for(db, pipe, p.id, {})
     out = pipe.segment(j, p)
@@ -92,14 +91,14 @@ def cmd_candidates(a):
 
 
 def cmd_rank(a):
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     j = _job_for(db, pipe, p.id, {})
     _fmt(pipe.rank(j, p, a.n), a.json)
 
 
 def cmd_render(a):
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     j = _job_for(db, pipe, p.id, {})
     _fmt(pipe.resolve_render(j, p), a.json)
@@ -108,7 +107,7 @@ def cmd_render(a):
 def cmd_validate(a):
     from .models.entities import Clip
     from .validation.checks import validate_clip
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     reps = []
     for c in db.query(Clip).filter_by(project_id=p.id).all():
@@ -120,10 +119,10 @@ def cmd_validate(a):
 
 
 def cmd_run(a):
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
-    from .models.entities import ProcessingJob
     from .core.ids import new_id
+    from .models.entities import ProcessingJob
     params = {"source": a.source} if a.source else {}
     params.update(json.loads(a.params or "{}"))
     j = ProcessingJob(id=new_id(), project_id=p.id, status="queued", params=params)
@@ -133,7 +132,7 @@ def cmd_run(a):
 
 
 def cmd_export(a):
-    s, db, pipe = _ctx()
+    _, db, pipe = _ctx()
     p = _project(db, a.project)
     from .services.exporter import build_export
     e = build_export(db, pipe.storage, p)
@@ -143,7 +142,6 @@ def cmd_export(a):
 
 def cmd_doctor(a):
     import shutil
-    import subprocess
     checks = {}
     checks["python"] = {"status": "PASS",
                         "detail": f"{sys.version_info.major}.{sys.version_info.minor}"}
@@ -153,12 +151,12 @@ def cmd_doctor(a):
     try:
         init_db()
         checks["database"] = {"status": "PASS"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - doctor reports all failures, never raises
         checks["database"] = {"status": "FAIL", "detail": str(e)[:120]}
     try:
         LocalFilesystemStorage(get_settings().storage_path).list("")
         checks["storage"] = {"status": "PASS"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - doctor reports all failures, never raises
         checks["storage"] = {"status": "FAIL", "detail": str(e)[:120]}
     try:
         import faster_whisper  # noqa

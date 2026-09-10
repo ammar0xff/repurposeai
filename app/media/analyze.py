@@ -13,10 +13,9 @@ def ffprobe(path: str, ffprobe_bin: str = "ffprobe") -> dict:
     try:
         p = subprocess.run(
             [ffprobe_bin, "-v", "error", "-show_entries",
-             "format=duration,size:stream=index,codec_name,codec_type,width,height,"
-             "avg_frame_rate,sample_rate,channels",
+             "format=duration,size:stream=index,codec_name,codec_type,width,height,avg_frame_rate,sample_rate,channels",
              "-of", "json", path],
-            capture_output=True, text=True, timeout=120)
+            capture_output=True, text=True, timeout=120, check=False)
     except FileNotFoundError as e:
         raise MediaError("FFprobe not found. Install FFmpeg.",
                          details=str(e)) from e
@@ -35,8 +34,8 @@ def analyze(path: str, ffprobe_bin: str = "ffprobe") -> dict:
     streams = info.get("streams", [])
     if not streams:
         raise MediaError("No decodable streams found.")
-    vid = next((s for s in streams if s.get("codec_type") == "video"), {})
-    aud = next((s for s in streams if s.get("codec_type") == "audio"), {})
+    vid: dict = next((s for s in streams if s.get("codec_type") == "video"), {})
+    aud: dict = next((s for s in streams if s.get("codec_type") == "audio"), {})
     if not vid:
         raise MediaError("No video stream found.")
     num, _, den = (vid.get("avg_frame_rate", "0/1") + "/1").split("/")[:3]

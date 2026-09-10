@@ -1,11 +1,19 @@
 """Projects: CRUD + ingest/process/cancel + children + export."""
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
-from ..core.errors import RepurposeError
-from ..core.ids import is_id, new_id
-from ..models.entities import (Candidate, Clip, Export, GeneratedMetadata, MediaAsset,
-                               ProcessingJob, Project, Transcript)
-from .deps import current_user, db_session, pipeline_dep, settings_dep, storage_dep
+from ..core.ids import new_id
+from ..core.logging import log
+from ..models.entities import (
+    Candidate,
+    Clip,
+    GeneratedMetadata,
+    MediaAsset,
+    ProcessingJob,
+    Project,
+    Transcript,
+)
+from ..workers import get_worker
+from .deps import current_user, db_session, settings_dep, storage_dep
 from .schemas import JobCreate, ProjectCreate, ProjectOut
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -50,8 +58,8 @@ def delete(pid: str, db=Depends(db_session), st=Depends(storage_dep),
     for a in db.query(MediaAsset).filter_by(project_id=pid).all():
         try:
             st.delete(a.storage_key)
-        except Exception:
-            pass  # storage best-effort; DB is source of truth
+        except OSError as e:  # storage best-effort; DB is source of truth
+            log.warning("delete skips missing artifact %s: %s", a.storage_key, e)
     db.delete(p)
     db.commit()
     return {"deleted": pid}
@@ -79,7 +87,6 @@ def upload(pid: str, file: UploadFile, db=Depends(db_session),
 @router.post("/{pid}/process", status_code=201)
 def process(pid: str, body: JobCreate, db=Depends(db_session),
             _u=Depends(current_user)):
-    from ..workers.runner import _WORKER
     p = db.query(Project).filter_by(id=pid, user_id=_u).first()
     if not p:
         raise HTTPException(404, "project not found")
@@ -98,23 +105,22 @@ def process(pid: str, body: JobCreate, db=Depends(db_session),
     db.add(job)
     db.commit()
     try:
-        _WORKER.submit(job.id)
-    except Exception:
-        pass  # dispatcher loop picks up queued jobs anyway
+        get_worker().submit(job.id)
+    except (AssertionError, RuntimeError) as e:
+        log.warning("worker submit deferred (%s); dispatcher will pick up", e)
     return {"job_id": job.id, "status": "queued"}
 
 
 @router.post("/{pid}/cancel")
 def cancel(pid: str, db=Depends(db_session), _u=Depends(current_user)):
-    from ..workers.runner import _WORKER
     jobs = db.query(ProcessingJob).filter_by(project_id=pid).all()
     if not any(j.project_id == pid for j in jobs):
         raise HTTPException(404, "project not found")
     for j in jobs:
         if j.status in ("queued", "running"):
             try:
-                _WORKER.cancel(j.id)
-            except Exception:
+                get_worker().cancel(j.id)
+            except (AssertionError, RuntimeError):
                 j.status = "cancelled"
     db.commit()
     return {"cancelled": True}
@@ -168,7 +174,6 @@ def transcript(pid: str, db=Depends(db_session), _u=Depends(current_user)):
 @router.post("/{pid}/export", response_model=dict, status_code=201)
 def export(pid: str, db=Depends(db_session), st=Depends(storage_dep),
            _u=Depends(current_user)):
-    from ..models.entities import Export as Exp
     p = db.query(Project).filter_by(id=pid, user_id=_u).first()
     if not p:
         raise HTTPException(404, "project not found")

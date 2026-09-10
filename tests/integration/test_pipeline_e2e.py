@@ -16,12 +16,12 @@ for f in ("/tmp/rpa_e2e.db",):
     except OSError:
         pass
 
-from app.config.settings import get_settings  # noqa: E402
-from app.core.ids import new_id  # noqa: E402
-from app.models.db import get_session_factory, init_db  # noqa: E402
-from app.models.entities import Clip, Project  # noqa: E402
-from app.services.pipeline import Pipeline  # noqa: E402
-from app.storage.local import LocalFilesystemStorage  # noqa: E402
+from app.config.settings import get_settings
+from app.core.ids import new_id
+from app.models.db import get_session_factory, init_db
+from app.models.entities import Clip, Project
+from app.services.pipeline import Pipeline
+from app.storage.local import LocalFilesystemStorage
 
 
 def test_e2e_synthetic():

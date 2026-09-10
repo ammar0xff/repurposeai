@@ -16,7 +16,7 @@ class Base(DeclarativeBase):
 
 
 def utcnow() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 class UUIDPk:

@@ -46,17 +46,17 @@ def _face_median(source: str, start: float, end: float) -> float:
     cmd = ["ffmpeg", "-v", "error", "-ss", str(start), "-t", str(max(end - start, 0.5)),
            "-i", source, "-vf", "fps=1,scale=320:-1",
            "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
-    p = subprocess.run(cmd, capture_output=True, timeout=120)
+    p = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
     if p.returncode != 0 or not p.stdout:
         return 0.5
     try:
+        import cv2
         import mediapipe as mp
         import numpy as np
-        import cv2
     except ImportError:
         # Haar fallback ships with opencv data files
-        import numpy as np
         import cv2
+        import numpy as np
         data, xs, soi = p.stdout, [], b"\xff\xd8"
         idx = [i for i in range(len(data)) if data.startswith(soi, i)]
         cc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
@@ -70,8 +70,8 @@ def _face_median(source: str, start: float, end: float) -> float:
         xs.sort()
         return float(max(0.0, min(1.0, xs[len(xs) // 2]))) if xs else 0.5
     # mediapipe path
-    import numpy as np
     import cv2
+    import numpy as np
     det = mp.solutions.face_detection.FaceDetection(model_selection=0,
                                                    min_detection_confidence=0.5)
     data, xs, soi = p.stdout, [], b"\xff\xd8"
@@ -89,8 +89,15 @@ def _face_median(source: str, start: float, end: float) -> float:
 
 
 def get_strategy(name: str, **kw) -> ReframingStrategy:
-    return {"center": CenterStrategy, "face": FaceStrategy, "speaker": SpeakerStrategy,
-            "smart": SmartStrategy, "manual": ManualStrategy}.get(name, CenterStrategy)(**kw)
+    if name == "face":
+        return FaceStrategy()
+    if name == "speaker":
+        return SpeakerStrategy()
+    if name == "smart":
+        return SmartStrategy()
+    if name == "manual":
+        return ManualStrategy(**kw)
+    return CenterStrategy()
 
 
 def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float) -> str:

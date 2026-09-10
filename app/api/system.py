@@ -12,7 +12,7 @@ def _check(name: str, fn):
     try:
         fn()
         return {"status": "ok"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - health probes must report, never raise
         return {"status": "fail", "error": f"{type(e).__name__}: {e}"[:200]}
 
 

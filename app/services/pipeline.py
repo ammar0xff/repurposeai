@@ -1,23 +1,27 @@
 """Pipeline service: stage-by-stage orchestration over pure functions.
 Callable from API, CLI, worker, MCP. Idempotent per stage (skip when done
 unless force=True). Persist checkpoints after every stage (resumability)."""
-import datetime
-import time
 
-from ..captions.engine import to_ass
 from ..core.errors import MediaError
 from ..core.ids import new_id
 from ..core.logging import log, set_ctx
 from ..media.analyze import analyze
 from ..media.signals import scene_cuts, silence
-from ..models.entities import (Candidate, CandidateScore, Clip, GeneratedMetadata,
-                               MediaAsset, PipelineStage, ProcessingJob, Project,
-                               Scene, Transcript)
+from ..models.entities import (
+    Candidate,
+    CandidateScore,
+    Clip,
+    MediaAsset,
+    PipelineStage,
+    ProcessingJob,
+    Project,
+    Scene,
+    Transcript,
+)
 from ..pipelines.candidates import eligible, generate
 from ..pipelines.sentences import to_sentences  # noqa: F401 (public step)
 from ..providers.llm import get_llm_provider
 from ..providers.stt import FasterWhisperProvider
-from ..ranking.heuristic import score_candidates
 from ..ranking.resolve import resolve
 from ..ranking.service import rank as rank_service
 from ..rendering.renderer import PROFILES, Renderer
@@ -30,7 +34,7 @@ STAGES = ["ingest", "analyze", "transcribe", "segment", "rank",
 
 def _utc():
     import datetime as _dt
-    return _dt.datetime.now(_dt.timezone.utc)
+    return _dt.datetime.now(_dt.UTC)
 
 
 _STOP: dict[str, bool] = {}  # process-wide cancel flags (worker + API share them)
@@ -199,7 +203,7 @@ class Pipeline:
             src = self._src_path(project)
             cuts, eng = scene_cuts(src)
             sil = silence(src)
-            for i in range(0, len(cuts) - 1):
+            for i in range(len(cuts) - 1):
                 self.db.add(Scene(id=new_id(), project_id=project.id,
                                   start=cuts[i], end=cuts[i + 1], engine=eng))
             cfg = (project.config or {})
@@ -257,7 +261,6 @@ class Pipeline:
 
     def resolve_render(self, job: ProcessingJob, project: Project) -> dict:
         """Resolve timestamps + render + validate + metadata. Resumable per clip."""
-        from ..ranking.resolve import resolve
         cfg = project.config or {}
         profile = cfg.get("render_profile", "shorts_1080x1920")
         reframe = cfg.get("reframe", "center")
@@ -283,7 +286,7 @@ class Pipeline:
                 key = project_key(project.id, "clips", f"{r.id}.mp4")
                 import os
                 tmp = f"/tmp/rpa-clip-{r.id}.mp4"
-                meta = rdr.render(self._src_path(project), rs, re, words, tmp,
+                rdr.render(self._src_path(project), rs, re, words, tmp,
                                   profile, reframe, style, cfg.get("credit", ""))
                 self.storage.put_file(key, tmp)
                 vrep = validate_clip(self.storage.get_path(key), {
@@ -299,7 +302,7 @@ class Pipeline:
                 os.unlink(tmp)
                 self._done(job, st, 65 + int(30 * (done + 1) / max(n, 1)))
                 done += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-clip guard: record, continue batch
                 self._fail(job, st, e)
                 continue
         return {"rendered": done}
@@ -344,7 +347,7 @@ class Pipeline:
             self.db.commit()
             log.info("job ready_for_review: %s", job.id)
             return {"job": job.id, "status": job.status, **res}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level guard: mark failed, never crash worker
             if job.status != "failed":
                 job.status, job.error = "failed", f"{type(e).__name__}: {e}"
                 self.db.commit()

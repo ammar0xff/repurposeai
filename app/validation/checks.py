@@ -1,6 +1,6 @@
 """Production validation: ffprobe every clip. Returns READY report."""
-import subprocess
 
+from ..core.errors import MediaError
 from ..media.analyze import ffprobe
 
 
@@ -14,11 +14,11 @@ def validate_clip(mp4: str, expect: dict, ffprobe_bin: str = "ffprobe") -> dict:
     checks: dict[str, bool] = {}
     try:
         info = ffprobe(mp4, ffprobe_bin)
-    except Exception:
+    except (MediaError, ValueError, OSError):
         return {"status": "FAIL", "checks": {"readable": False}}
     streams = info.get("streams", [])
-    vid = next((s for s in streams if s.get("codec_type") == "video"), {})
-    aud = next((s for s in streams if s.get("codec_type") == "audio"), {})
+    vid: dict = next((s for s in streams if s.get("codec_type") == "video"), {})
+    aud: dict = next((s for s in streams if s.get("codec_type") == "audio"), {})
     dur = float(info.get("format", {}).get("duration", 0) or 0)
     checks["readable"] = True
     checks["resolution"] = (vid.get("width") == expect.get("width")

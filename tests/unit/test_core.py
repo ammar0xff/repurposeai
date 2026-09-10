@@ -1,5 +1,6 @@
 """Unit: ids, errors, storage, captions segmentation."""
 import sys
+
 sys.path.insert(0, ".")
 
 from app.captions.engine import segment, to_ass
@@ -39,7 +40,8 @@ def test_storage_roundtrip(tmp_path):
 def test_captions_no_overlap_ordered():
     segs = segment(WORDS, 0.0, 20.0, max_words=4)
     assert segs
-    for (s, e, _), (s2, e2, _) in zip(segs, segs[1:]):
-        assert s < e and e <= s2 + 0.01
+    from itertools import pairwise
+    for (s, e, _), (s2, e2, _) in pairwise(segs):
+        assert s < e <= s2 + 0.01
     ass = to_ass(WORDS, 0.0, 20.0, "bold")
     assert "V4+ Styles" in ass and "Dialogue" in ass

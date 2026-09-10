@@ -4,6 +4,7 @@ import json
 import zipfile
 
 from ..core.ids import new_id
+from ..core.logging import log
 from ..models.entities import Clip, Export, GeneratedMetadata, Transcript
 from ..storage.base import project_key
 
@@ -19,7 +20,8 @@ def build_export(db, storage, project) -> Export:
         name = f"clip-{i:03d}.mp4"
         try:
             files[name] = storage.get(c.storage_key)
-        except Exception:
+        except (OSError, RuntimeError, KeyError) as e:
+            log.warning("export skips missing artifact %s: %s", c.storage_key, e)
             continue
         items.append({"id": c.id, "file": name, "start": c.start, "end": c.end,
                       "score": 0, "validation": c.validation,
@@ -69,7 +71,8 @@ def project_archive(db, storage, project, include_media: bool = True) -> str:
             for a in db.query(MediaAsset).filter_by(project_id=project.id, kind="source").all():
                 try:
                     z.writestr(f"media/{a.id}", storage.get(a.storage_key))
-                except Exception:
+                except (OSError, RuntimeError, KeyError) as e:
+                    log.warning("archive skips missing artifact %s: %s", a.storage_key, e)
                     continue
     key = project_key(project.id, "exports", f"project-{new_id()}.rpa.zip")
     storage.put(key, buf.getvalue())

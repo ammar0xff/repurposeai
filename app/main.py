@@ -57,10 +57,10 @@ from contextlib import asynccontextmanager
 async def lifespan(_app: FastAPI):
     from .config.settings import get_settings as _gs
     from .models.db import init_db
+    from .services.pipeline import Pipeline
     from .storage.local import LocalFilesystemStorage
     from .workers import set_worker
     from .workers.runner import Worker
-    from .services.pipeline import Pipeline
     st = _gs()
     init_db()
     store = LocalFilesystemStorage(st.storage_path)

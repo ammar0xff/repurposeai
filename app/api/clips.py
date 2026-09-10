@@ -56,10 +56,11 @@ def rerender(cid: str, body: RerenderIn, db=Depends(db_session),
     tr = db.query(Transcript).filter_by(project_id=c.project_id).first()
     words = tr.words if tr else []
     import os
+
     from ..storage.base import project_key
     tmp = f"/tmp/rpa-re-{c.id}.mp4"
     rdr = Renderer()
-    meta = rdr.render(pipe._src_path(db.query(Project).filter_by(id=c.project_id).first()),
+    rdr.render(pipe._src_path(db.query(Project).filter_by(id=c.project_id).first()),
                       start, end, words, tmp,
                       cfg.get("render_profile", "shorts_1080x1920"),
                       body.reframe or cfg.get("reframe", "center"),
@@ -92,7 +93,7 @@ def download(cid: str, db=Depends(db_session), st=Depends(storage_dep),
     c = _owned(db, cid, _u)
     try:
         data = st.get(c.storage_key)
-    except Exception:
+    except (OSError, RuntimeError, KeyError):
         raise HTTPException(404, "artifact missing from storage")
     return Response(data, media_type="video/mp4",
                     headers={"Content-Disposition": f"attachment; filename={cid}.mp4"})

@@ -29,7 +29,6 @@ class Worker:
             return list(self._threads)
 
     def submit(self, job_id: str):
-        from ..models.entities import ProcessingJob
         db = get_session_factory()()
         try:
             with self._lock:
@@ -47,7 +46,7 @@ class Worker:
     def _guarded(self, pipe, job_id: str):
         try:
             pipe.run(job_id)
-        except Exception as e:  # never kill the dispatcher
+        except Exception as e:  # noqa: BLE001 - worker must never die on job errors
             log.error("worker crash on %s: %s", job_id, e)
 
     def cancel(self, job_id: str):
@@ -75,6 +74,6 @@ class Worker:
                         self.submit(j.id)
                 finally:
                     db.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - dispatcher loop is immortal by design
                 log.error("dispatcher error: %s", e)
             time.sleep(3)

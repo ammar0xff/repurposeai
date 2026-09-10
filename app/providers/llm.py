@@ -38,7 +38,7 @@ class LLMProvider(ABC):
             if not self.available():
                 raise RuntimeError("provider unavailable")
             return self.score(candidates, model), self.name
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any provider failure -> visible heuristic fallback
             return [], f"heuristic (LLM unavailable: {e})"
 
 
@@ -57,6 +57,7 @@ class OpenAICompatibleProvider(LLMProvider):
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        import http.client
         last = None
         for attempt in (1, 2, 3):
             try:
@@ -68,7 +69,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 if not raw:
                     raise ValueError("empty response body")
                 return json.loads(raw)
-            except Exception as e:
+            except (OSError, ValueError, http.client.HTTPException) as e:
                 last = e
                 import time as _t
                 _t.sleep(3 * attempt)

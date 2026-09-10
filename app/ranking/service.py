@@ -77,7 +77,7 @@ def rank(cands: list, words: list, duration: float, n: int,
                 if len(moms) == n:
                     break
             moms.sort(key=lambda m: -m["score"])
-            picked = []
+            picked: list = []
             for m in moms:
                 if all(m["end"] <= q["start"] or m["start"] >= q["end"] for q in picked):
                     picked.append(m)

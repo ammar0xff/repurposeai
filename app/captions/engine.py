@@ -1,5 +1,4 @@
 """Caption engine: words -> timed groups -> ASS. Stdlib only."""
-from ..pipelines.sentences import to_sentences
 
 STYLES = {
     "clean": {"font": "DejaVu Sans", "size": 56, "bold": 0, "margin_v": 320},

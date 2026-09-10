@@ -42,9 +42,11 @@ def cancel(jid: str, db=Depends(db_session), _u=Depends(current_user)):
     j = db.query(ProcessingJob).filter_by(id=jid).first()
     if not j:
         raise HTTPException(404, "job not found")
+    from ..core.logging import log
     try:
         get_worker().cancel(jid)
-    except Exception:
+    except (AssertionError, RuntimeError) as e:
+        log.warning("cancel via worker failed (%s); marking cancelled", e)
         j.status = "cancelled"
         db.commit()
     return {"cancelled": jid}

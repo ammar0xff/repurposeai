@@ -1,5 +1,6 @@
 """Unit: sentences, candidates, eligibility, resolver, heuristic scoring."""
 import sys
+
 sys.path.insert(0, ".")
 
 from app.pipelines.candidates import eligible, generate
@@ -69,8 +70,9 @@ def test_heuristic_schema_and_nonoverlap():
     moms = score_candidates(cands, words, dur, 3)
     assert moms, "expected moments"
     for m in moms:
-        assert set(("candidate", "start", "end", "score", "axes", "source")) <= set(m)
+        assert {"candidate", "start", "end", "score", "axes", "source"} <= set(m)
         assert m["source"] == "heuristic"
         assert m["start"] < m["end"]
-    for a, b in zip(moms, moms[1:]):
+    from itertools import pairwise
+    for a, b in pairwise(moms):
         assert a["end"] <= b["start"] or b["end"] <= a["start"]
