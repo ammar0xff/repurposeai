@@ -141,9 +141,11 @@ def clips(pid: str, db=Depends(db_session), _u=Depends(current_user)):
     if not db.query(Project).filter_by(id=pid, user_id=_u).first():
         raise HTTPException(404, "project not found")
     rows = db.query(Clip).filter_by(project_id=pid).order_by(Clip.created_at.desc()).all()
+    from ..models.entities import CandidateScore
     out = []
     for c in rows:
         md = db.query(GeneratedMetadata).filter_by(clip_id=c.id).first()
+        sc = db.query(CandidateScore).filter_by(candidate_id=c.candidate_id).order_by(CandidateScore.overall.desc()).first() if c.candidate_id else None
         dec = None
         from ..models.entities import ReviewDecision
         d = db.query(ReviewDecision).filter_by(clip_id=c.id).order_by(
@@ -152,6 +154,7 @@ def clips(pid: str, db=Depends(db_session), _u=Depends(current_user)):
             dec = d.decision
         out.append({"id": c.id, "start": c.start, "end": c.end, "status": c.status,
                     "render_profile": c.render_profile, "validation": c.validation,
+                    "axes": sc.axes if sc else {}, "score": round((sc.overall * 10) if sc else 0, 1),
                     "metadata": {"titles": md.titles if md else [],
                                  "caption": md.caption if md else "",
                                  "hashtags": md.hashtags if md else [],

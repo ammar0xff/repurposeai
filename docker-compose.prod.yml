@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: { context: ., dockerfile: docker/backend.Dockerfile }
+    env_file: [.env.prod]
+    environment:
+      APP_ENV: prod
+      DATABASE_URL: postgresql+psycopg2://rpa:${DB_PASSWORD}@db:5432/rpa
+      STORAGE_PATH: /srv/data
+    volumes: [rpa-data:/srv/data]
+    depends_on: { db: { condition: service_healthy } }
+  worker:
+    build: { context: ., dockerfile: docker/backend.Dockerfile }
+    command: ["python", "-m", "app.workers.daemon"]
+    env_file: [.env.prod]
+    volumes: [rpa-data:/srv/data]
+    depends_on: [backend]
+  frontend:
+    build: { context: ., dockerfile: docker/frontend.Dockerfile }
+    ports: ["80:80"]
+    depends_on: [backend]
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rpa
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: rpa
+    volumes: [rpa-db:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U rpa"], interval: 10s, timeout: 5s, retries: 5 }
+volumes:
+  rpa-data:
+  rpa-db:

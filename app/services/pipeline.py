@@ -91,7 +91,10 @@ class Pipeline:
                upload_bytes: bytes | None = None, filename: str = "") -> str:
         st = self._begin(job, "ingest")
         try:
-            if upload_bytes is not None:
+            if (job.params or {}).get("preuploaded") and self.storage.exists(source):
+                key = source
+                log.info("ingest: using pre-uploaded key %s", key)
+            elif upload_bytes is not None:
                 safe = "".join(c for c in filename if c.isalnum() or c in "._-")[-80:] or "upload"
                 key = project_key(project.id, "source", safe)
                 self.storage.put(key, upload_bytes)
