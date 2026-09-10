@@ -1,9 +1,16 @@
 """Engine + session factory. SQLite default; Postgres via DATABASE_URL."""
+import logging
+from pathlib import Path
+from urllib.parse import urlparse
+
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from ..config.settings import get_settings
 from .base import Base
+
+logger = logging.getLogger("repurposeai.db")
 
 
 def get_engine(url: str = ""):
@@ -21,14 +28,17 @@ def get_session_factory(url: str = ""):
 def _alembic_head_revision() -> str | None:
     """Current migration head, or None when alembic files aren't reachable."""
     try:
-        from pathlib import Path as _P
         from alembic.config import Config
         from alembic.script import ScriptDirectory
-        root = _P(__file__).resolve().parent.parent.parent
+    except ImportError:
+        return None
+    try:
+        root = Path(__file__).resolve().parent.parent.parent
         cfg = Config(str(root / "alembic.ini"))
         cfg.set_main_option("script_location", str(root / "migrations"))
         return ScriptDirectory.from_config(cfg).get_current_head()
-    except Exception:
+    except (KeyError, OSError, TypeError, ValueError) as exc:
+        logger.debug("alembic head lookup unavailable: %s", exc)
         return None
 
 
@@ -63,23 +73,21 @@ def _stamp_head_if_unversioned(url: str) -> None:
                 text("insert into alembic_version (version_num) values (:v)"),
                 {"v": head},
             )
-    except Exception:
-        pass  # read-only or non-bootstrap env; deploy handles adoption
+    except SQLAlchemyError as exc:
+        logger.warning("skip alembic stamp (locked/unreadable DB): %s", exc)
 
 
 def init_db(url: str = "") -> None:
     """Create tables directly (dev/test). Production uses Alembic migrations."""
-    from pathlib import Path as _P
-    from urllib.parse import urlparse
     u = url or get_settings().database_url
     if u.startswith("sqlite:"):
         parts = urlparse(u)
         # sqlite:////abs/path (netloc empty) vs sqlite:///rel/path
         rel = parts.path.lstrip("/") if parts.netloc in ("", ".") else parts.path
-        parent = _P(rel or "./data/repurposeai.db").parent
+        parent = Path(rel or "./data/repurposeai.db").parent
         if str(parent) not in ("", "."):
             parent.mkdir(parents=True, exist_ok=True)
         else:
-            _P("./data").mkdir(parents=True, exist_ok=True)
+            Path("./data").mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(get_engine(u))
     _stamp_head_if_unversioned(u)
