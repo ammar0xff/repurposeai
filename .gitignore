@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+.env
+node_modules/
+web/dist/
+*.mp4
+*.wav
+!tests/fixtures/**
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
