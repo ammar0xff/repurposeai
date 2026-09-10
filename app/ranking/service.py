@@ -51,8 +51,11 @@ def _validate_records(recs: list, want_ids: set) -> list:
 
 
 def rank(cands: list, words: list, duration: float, n: int,
-         provider, model: str = "") -> tuple[list, str]:
+         provider, model: str = "", profile: str = "balanced",
+         custom_weights: dict | None = None) -> tuple[list, str]:
     """Returns (moments, source_label). source is 'llm:<name>' or 'heuristic'."""
+    from .profiles import overall_with, weights_for
+    weights = weights_for(profile, custom_weights)
     from ..ranking.resolve import resolve
     from .heuristic import score_candidates
     recs, via = provider.score_safe(
@@ -63,11 +66,12 @@ def rank(cands: list, words: list, duration: float, n: int,
         valid = _validate_records(recs, set(range(len(cands))))
         if valid:
             moms = []
-            for r in sorted(valid, key=lambda x: -x["overall"]):
+            for r in sorted(valid, key=lambda x: -overall_with(x["axes"], weights)):
                 c = cands[r["id"]]
                 rs, re = resolve(c["start"], c["end"], words, duration)
                 moms.append({"candidate": r["id"], "start": rs, "end": re,
-                             "score": round(r["overall"] * 10, 1), "axes": r["axes"],
+                             "score": round(overall_with(r["axes"], weights) * 10, 1),
+                             "axes": r["axes"], "profile": profile,
                              "title": r["title"] or c.get("hook_text", "")[:60],
                              "caption": r["caption"] or c.get("text", "")[:150],
                              "hook_text": c.get("hook_text", ""),
@@ -84,5 +88,5 @@ def rank(cands: list, words: list, duration: float, n: int,
                 if len(picked) == n:
                     break
             return sorted(picked, key=lambda m: m["start"]), via
-    moms = score_candidates(cands, words, duration, n)
+    moms = score_candidates(cands, words, duration, n, weights, profile)
     return moms, "heuristic"

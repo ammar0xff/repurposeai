@@ -246,7 +246,9 @@ class Pipeline:
             provider = get_llm_provider(cfg.get("ai_provider") or self.s.llm_provider)
             moms, via = rank_service(
                 cands, tr.words if tr else [], tr.duration if tr else 0, n,
-                provider, cfg.get("ai_model", self.s.llm_model))
+                provider, cfg.get("ai_model", self.s.llm_model),
+                cfg.get("ranking_profile", "balanced"),
+                cfg.get("ranking_weights"))
             for m in moms:
                 r = rows[m["candidate"]]
                 r.score = m["score"]
@@ -254,7 +256,8 @@ class Pipeline:
                                            model=m.get("model", ""),
                                            prompt_version=m.get("prompt_version", ""),
                                            axes=m.get("axes", {}), overall=m["score"] / 10,
-                                           reason=m.get("reason", "")))
+                                           reason=m.get("reason", ""),
+                                           profile=m.get("profile", cfg.get("ranking_profile", "balanced"))))
             self.db.commit()
             self._done(job, st, 65)
             return {"ranked": len(moms), "via": via}
@@ -302,6 +305,18 @@ class Pipeline:
                             status="rendered" if vrep["status"] == "READY" else "failed",
                             render_profile=profile, validation=vrep)
                 self.db.add(clip)
+                try:
+                    from .metadata import generate as _genmd
+                    from ..models.entities import GeneratedMetadata as _GM
+                    from ..providers.llm import get_llm_provider as _gllm
+                    md = _genmd(r.text, _gllm(cfg.get("ai_provider") or self.s.llm_provider),
+                                cfg.get("ai_model", self.s.llm_model),
+                                cfg.get("hashtags", []))
+                    self.db.add(_GM(id=new_id(), clip_id=clip.id, titles=md["titles"],
+                                    description=md["description"], caption=md["caption"],
+                                    hashtags=md["hashtags"], keywords=md["keywords"]))
+                except Exception as e:  # noqa: BLE001 - metadata must never break renders
+                    log.warning("metadata generation skipped: %s", e)
                 os.unlink(tmp)
                 self._done(job, st, 65 + int(30 * (done + 1) / max(n, 1)))
                 done += 1

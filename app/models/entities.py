@@ -102,6 +102,7 @@ class CandidateScore(Base):
     prompt_version: Mapped[str] = mapped_column(String(32), default="")
     axes: Mapped[dict] = mapped_column(JSON, default=dict)
     overall: Mapped[float] = mapped_column(Float, default=0)
+    profile: Mapped[str] = mapped_column(String(32), server_default="balanced")
     reason: Mapped[str] = mapped_column(Text, default="")
     candidate: Mapped[Candidate] = relationship(back_populates="scores")
 
@@ -149,6 +150,19 @@ class Export(Base, UUIDPk, Timestamped):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     storage_key: Mapped[str] = mapped_column(String(512), default="")
     manifest: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class User(Base, UUIDPk, Timestamped):
+    __tablename__ = "users"
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    pw_hash: Mapped[str] = mapped_column(String(256))
+
+
+class APIToken(Base, UUIDPk, Timestamped):
+    __tablename__ = "api_tokens"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    token_sha: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[float] = mapped_column(Float, default=0)
 
 
 class SystemSetting(Base):

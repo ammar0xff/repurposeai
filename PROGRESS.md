@@ -117,3 +117,12 @@ bounded workers, temp cleanup, int8 CPU default.
 New LLM/STT/vision provider (subclass ABC), ranking profiles (config),
 caption styles + render profiles (dicts), storage backend (interface),
 prompt versions (prompts/ + stored version per result).
+
+## Gap audit vs 79-section spec (2026-09-10) — 7 items open
+1. §18 ranking profiles (balanced/viral/educational/emotional/storytelling/podcast+custom).
+2. §25 metadata AI variants (3 titles/description/caption/hashtags/keywords, heuristic fallback).
+3. §70 project IMPORT (export exists); §32 pagination on list endpoints.
+4. §37 rate limiting; §38 production password auth (token-only today).
+5. §78 frontend tests (vitest) + CI step.
+6. §79 Docker build verify — BLOCKED here (no daemon); documented limitation.
+7. Docs already cover the rest; OpenAPI auto-generated.

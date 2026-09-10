@@ -6,7 +6,7 @@ export default function Overview() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   useEffect(() => {
-    get<Project[]>("/api/projects").then(setProjects).catch(() => {});
+    get<{items: Project[]}>("/api/projects").then(r => r.items).then(setProjects).catch(() => {});
     get<Job[]>("/api/jobs").then(setJobs).catch(() => {});
   }, []);
   const active = jobs.find((j) => j.status === "running" || j.status === "queued");

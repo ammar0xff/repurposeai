@@ -3,7 +3,7 @@ import { get, post, Project } from "../api";
 
 export default function Exports() {
   const [projects, setProjects] = useState<Project[]>([]);
-  useEffect(() => { get<Project[]>("/api/projects").then(setProjects).catch(() => {}); }, []);
+  useEffect(() => { get<{items: Project[]}>("/api/projects").then(r => r.items).then(setProjects).catch(() => {}); }, []);
   const run = async (pid: string) => {
     const e = await post<{ storage_key: string; manifest: { clips: unknown[] } }>(`/api/projects/${pid}/export`);
     alert(`Exported ${e.manifest.clips.length} clips (${e.storage_key})`);

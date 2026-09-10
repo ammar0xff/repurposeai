@@ -1,6 +1,7 @@
 from .base import Base, Timestamped, UUIDPk, utcnow
 from .entities import (
                        AIProvider,
+                       APIToken,
                        Candidate,
                        CandidateScore,
                        CaptionStyle,
@@ -15,10 +16,12 @@ from .entities import (
                        Scene,
                        SystemSetting,
                        Transcript,
+                       User,
 )
 
 __all__ = [
                        "AIProvider",
+                       "APIToken",
                        "Base",
                        "Candidate",
                        "CandidateScore",
@@ -36,5 +39,6 @@ __all__ = [
                        "Timestamped",
                        "Transcript",
                        "UUIDPk",
+                       "User",
                        "utcnow",
 ]

@@ -1,4 +1,6 @@
 """Projects: CRUD + ingest/process/cancel + children + export."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
 from ..core.ids import new_id
@@ -36,9 +38,13 @@ def create(body: ProjectCreate, db=Depends(db_session), _u=Depends(current_user)
 
 
 @router.get("")
-def listing(db=Depends(db_session), _u=Depends(current_user)):
-    rows = db.query(Project).filter_by(user_id=_u).order_by(Project.created_at.desc()).all()
-    return [_out(p) for p in rows]
+def listing(limit: int = 50, offset: int = 0, db=Depends(db_session),
+            _u=Depends(current_user)):
+    limit = max(1, min(limit, 200))
+    q = db.query(Project).filter_by(user_id=_u).order_by(Project.created_at.desc())
+    total = q.count()
+    return {"total": total, "limit": limit, "offset": offset,
+            "items": [_out(p) for p in q.offset(offset).limit(limit).all()]}
 
 
 @router.get("/{pid}", response_model=ProjectOut)
@@ -172,6 +178,46 @@ def transcript(pid: str, db=Depends(db_session), _u=Depends(current_user)):
         raise HTTPException(404, "no transcript yet")
     return {"engine": t.engine, "language": t.language, "duration": t.duration,
             "words": t.words, "segments": t.segments}
+
+
+@router.post("/import", status_code=201)
+def import_project(file: UploadFile, db=Depends(db_session),
+                   st=Depends(storage_dep), _u=Depends(current_user)):
+    """Restore a portable archive (see exporter.project_archive)."""
+    import io
+    import zipfile
+
+    from ..models.entities import Candidate as _C
+    from ..models.entities import MediaAsset as _A
+    from ..storage.base import project_key
+    raw = file.file.read()
+    if len(raw) > 2 * 1024**3:
+        raise HTTPException(413, "archive too large")
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+        meta = json.loads(z.read("project.json"))
+    except (zipfile.BadZipFile, KeyError, ValueError, json.JSONDecodeError):
+        raise HTTPException(422, "invalid project archive")
+    m = meta.get("project", {})
+    p = Project(id=new_id(), title=str(m.get("title", "Imported"))[:255],
+                description=str(m.get("description", "")),
+                config=dict(m.get("config", {})), user_id=_u)
+    db.add(p)
+    for c in meta.get("candidates", []):
+        db.add(_C(id=new_id(), project_id=p.id, job_id="imported",
+                  start=float(c.get("start", 0)), end=float(c.get("end", 0)),
+                  text=str(c.get("text", ""))[:2000],
+                  score=float(c.get("score", 0))))
+    for name in z.namelist():
+        if name.startswith("media/") and not name.endswith("/"):
+            key = project_key(p.id, "source", name.rsplit("/", 1)[-1] or "media")
+            st.put(key, z.read(name))
+            db.add(_A(id=new_id(), project_id=p.id, kind="source",
+                      storage_key=key, size=len(z.read(name))))
+    db.commit()
+    for d in meta.get("decisions", []):
+        pass  # decisions reference old clip ids; intentionally not remapped
+    return {"project_id": p.id, "title": p.title}
 
 
 @router.post("/{pid}/export", response_model=dict, status_code=201)

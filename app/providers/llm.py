@@ -32,6 +32,10 @@ class LLMProvider(ABC):
     def score(self, candidates: list, model: str = "", timeout: int = 120) -> list:
         """Return [{id, hook.., retention.., title, caption, reason}]."""
 
+    def complete(self, messages: list, model: str = "", timeout: int = 120,
+                 **kw) -> dict:
+        raise NotImplementedError('text completion not supported by ' + self.name)
+
     def score_safe(self, candidates: list, model: str = "") -> tuple[list, str]:
         """(records, source) — never raises; falls back to heuristic markers."""
         try:
@@ -75,15 +79,22 @@ class OpenAICompatibleProvider(LLMProvider):
                 _t.sleep(3 * attempt)
         raise last  # type: ignore[misc]
 
+    def complete(self, messages: list, model: str = "", timeout: int = 120,
+                 **kw) -> dict:
+        """Public low-level chat call (used by ranking + metadata services)."""
+        payload = {"model": model or self.model, "messages": messages}
+        payload.update(kw)
+        return self._post(payload, timeout)
+
     def score(self, candidates: list, model: str = "", timeout: int = 120) -> list:
         tab = "\n".join(
             f"[{c['id']}] {c.get('start', 0):.0f}-{c.get('end', 0):.0f}s | "
             f"hook: {c.get('hook_text', '')[:140]} | text: {c.get('text', '')[:400]}"
             for c in candidates)
         prompt = load_prompt().replace("{N}", str(len(candidates))).replace("{CANDS}", tab[:14000])
-        data = self._post({"model": model or self.model, "temperature": 0.3,
-                           "max_tokens": 3000,
-                           "messages": [{"role": "user", "content": prompt}]}, timeout)
+        data = self.complete([{"role": "user", "content": prompt}],
+                             model or self.model, timeout,
+                             temperature=0.3, max_tokens=3000)
         txt = data["choices"][0]["message"]["content"]
         s, e = txt.find("["), txt.rfind("]")
         recs = json.loads(txt[s:e + 1])

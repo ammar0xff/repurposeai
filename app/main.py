@@ -1,4 +1,5 @@
 """FastAPI app: routers, errors, CORS, secure headers, static web UI, lifespan worker."""
+import os
 import time
 
 from fastapi import FastAPI, Request
@@ -6,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import clips, jobs, projects, system
+from .api import auth, clips, jobs, projects, system
 from .config.settings import get_settings
 from .core.errors import RepurposeError
 from .core.ids import new_id
@@ -21,8 +22,18 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"])
 
 
+from .core.ratelimit import LIMITER
+
+LIMITER.per_minute = int(os.environ.get("RATE_PER_MINUTE", "600"))
+
+
 @app.middleware("http")
 async def _ctx(request: Request, call_next):
+    if request.url.path.startswith("/api/") and not LIMITER.allow(
+            (request.client.host if request.client else "?") + request.url.path):
+        return JSONResponse({"error": "rate_limited",
+                             "message": "Too many requests. Slow down.",
+                             "hint": "RATE_PER_MINUTE"}, status_code=429)
     set_ctx(request_id=new_id())
     t0 = time.time()
     try:
@@ -44,6 +55,7 @@ async def _domain_err(_: Request, e: RepurposeError):
                         status_code=e.status)
 
 
+app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(jobs.router)
 app.include_router(clips.router)

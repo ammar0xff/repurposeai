@@ -1,9 +1,11 @@
 """Deterministic heuristic scoring. Same schema as the LLM path.
 Visible labeling: results carry source='heuristic' (No Fake AI rule)."""
 from ..providers.llm import overall
+from .profiles import overall_with
 
 
-def score_candidates(cands: list, words: list, duration: float, n: int = 5) -> list:
+def score_candidates(cands: list, words: list, duration: float, n: int = 5,
+                     weights: dict | None = None, profile: str = "balanced") -> list:
     from .resolve import resolve
     scored = []
     for i, c in enumerate(cands):
@@ -18,8 +20,10 @@ def score_candidates(cands: list, words: list, duration: float, n: int = 5) -> l
         }
         axes = {k: round(max(0, min(10, v)), 1) for k, v in axes.items()}
         rs, re = resolve(c["start"], c["end"], words, duration)
+        w = weights or {}
+        pts = round(overall_with(axes, w) * 10, 1) if w else round(overall(axes) * 10, 1)
         scored.append({"candidate": i, "start": rs, "end": re,
-                       "score": round(overall(axes) * 10, 1), "axes": axes,
+                       "score": pts, "axes": axes, "profile": profile,
                        "title": c.get("hook_text", "")[:60],
                        "caption": c.get("text", "")[:150],
                        "hook_text": c.get("hook_text", ""),

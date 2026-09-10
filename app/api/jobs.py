@@ -19,8 +19,11 @@ def _stages(db, job_id: str) -> list:
 
 
 @router.get("")
-def listing(db=Depends(db_session), _u=Depends(current_user)):
-    rows = db.query(ProcessingJob).order_by(ProcessingJob.created_at.desc()).limit(100).all()
+def listing(limit: int = 50, offset: int = 0, db=Depends(db_session),
+            _u=Depends(current_user)):
+    limit = max(1, min(limit, 200))
+    q = db.query(ProcessingJob).order_by(ProcessingJob.created_at.desc())
+    rows = q.offset(offset).limit(limit).all()
     return [{"id": j.id, "project_id": j.project_id, "status": j.status,
              "progress": j.progress, "current_stage": j.current_stage,
              "error": j.error, "created_at": str(j.created_at)} for j in rows]

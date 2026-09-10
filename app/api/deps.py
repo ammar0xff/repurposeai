@@ -42,11 +42,24 @@ def pipeline_dep(db=Depends(db_session), s: Settings = Depends(settings_dep),
 
 
 def current_user(authorization: str = Header(default=""),
-                 s: Settings = Depends(settings_dep)) -> str:
-    """Local single-account: no token configured = open (dev). With AUTH_TOKEN
-    set, require `Authorization: Bearer <token>`."""
-    if not s.auth_token:
-        return "local"
-    if authorization == f"Bearer {s.auth_token}":
+                 s: Settings = Depends(settings_dep),
+                 db=Depends(db_session)) -> str:
+    """Auth chain: legacy AUTH_TOKEN env -> DB token (password login) ->
+    open dev mode (no users configured AND no AUTH_TOKEN). Returns user_id."""
+    if authorization.startswith("Bearer "):
+        tok = authorization[7:]
+        if s.auth_token and tok == s.auth_token:
+            return "local"
+        import hashlib
+        import time
+
+        from ..models.entities import APIToken
+        digest = hashlib.sha256(tok.encode()).hexdigest()
+        row = db.query(APIToken).filter_by(token_sha=digest).first()
+        if row and row.expires_at > time.time():
+            return row.user_id
+        raise HTTPException(401, "unauthorized")
+    from ..models.entities import User
+    if not s.auth_token and db.query(User).count() == 0:
         return "local"
     raise HTTPException(401, "unauthorized")

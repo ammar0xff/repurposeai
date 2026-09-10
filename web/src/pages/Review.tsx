@@ -13,7 +13,7 @@ export default function Review() {
   const video = useRef<HTMLVideoElement>(null);
 
   const loadProjects = useCallback(() => {
-    get<Project[]>("/api/projects").then((ps) => {
+    get<{items: Project[]}>("/api/projects").then(r => r.items).then((ps) => {
       setProjects(ps);
       if (!pid && ps[0]) setPid(ps[0].id);
     }).catch(() => {});

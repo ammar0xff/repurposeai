@@ -5,7 +5,7 @@ export default function Projects() {
   const [list, setList] = useState<Project[]>([]);
   const [title, setTitle] = useState("");
   const [source, setSource] = useState("");
-  const load = () => get<Project[]>("/api/projects").then(setList).catch(() => {});
+  const load = () => get<{items: Project[]}>("/api/projects").then(r => r.items).then(setList).catch(() => {});
   useEffect(() => { load(); }, []);
   const create = async () => {
     if (!title.trim()) return;
