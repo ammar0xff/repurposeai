@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    if: vars.DEPLOY_ENABLED == 'true' 
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
