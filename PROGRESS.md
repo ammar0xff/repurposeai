@@ -46,3 +46,15 @@ Strategy: vertical slices, reuse proven whopclip core (ported, not rewritten).
   heuristic/captions/reframe/renderer/validation/ranking-service written.
 - 10 unit tests PASS on Termux (stdlib-only modules).
 - Rule confirmed: pipeline modules stay stdlib-only; pydantic/sqlalchemy/fastapi at boundary.
+
+## 2026-09-10 — S4-S9 progress
+- Ranking service (LLM structured + Pydantic-or-manual validation + retry + heuristic),
+  reframe strategies, renderer (arg arrays, tracked), validation reports, exporter/manifest.
+- API (projects/jobs/clips/review/exports/system+SSE+OpenAPI), auth abstraction, worker
+  (DB queue, cancel, resume), CLI (13 commands), MCP thin server, Alembic 0001.
+- Frontend React+TS+Vite+Tailwind (7 pages, keyboard review, axes bars) BUILDS on Termux.
+- E2E found + fixed: worker session ownership, preuploaded ingest, sqlite mkdir, test isolation.
+- 19/19 pytest green on homie. ruff 0, mypy 0 (49 files).
+- Homie CPU cannot run PyAV/ctranslate2 wheels (SIGILL) + oomd kills whisper:
+  STT availability uses a subprocess probe (never crashes the server); heavy STT
+  belongs on runners (GitHub Actions, free 16GB).
