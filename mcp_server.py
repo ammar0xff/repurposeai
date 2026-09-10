@@ -36,6 +36,9 @@ TOOLS = [
         "project_id": {"type": "string"}, "n": {"type": "integer", "default": 5}}, "required": ["project_id"]}},
     {"name": "render_clip", "description": "Resolve + render top clips.",
      "inputSchema": {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]}},
+    {"name": "get_campaign", "description": "Read a campaign brief with blockers.",
+     "inputSchema": {"type": "object", "properties": {
+        "campaign_id": {"type": "string"}}, "required": ["campaign_id"]}},
     {"name": "validate_project", "description": "FFprobe-validate all rendered clips.",
      "inputSchema": {"type": "object", "properties": {"project_id": {"type": "string"}}, "required": ["project_id"]}},
     {"name": "list_clips", "description": "List clips with status.",
@@ -88,6 +91,16 @@ def call(name: str, a: dict) -> str:
     if name == "render_clip":
         p = _proj(a["project_id"])
         return json.dumps(_PIPE.resolve_render(_job(p.id, {}), p))
+    if name == "get_campaign":
+        from app.models.entities import Campaign
+        from app.services.campaigns import blockers, p0_missing
+        c = _DB.query(Campaign).filter_by(id=a["campaign_id"]).first()
+        if not c:
+            return json.dumps({"error": "campaign not found"})
+        return json.dumps({"id": c.id, "name": c.name, "version": c.version,
+                           "rules": c.rules, "verified": c.verified,
+                           "p0_missing": p0_missing(c.rules or {}),
+                           "blockers": blockers(c.rules or {}, c.verified)})
     if name == "validate_project":
         from app.validation.checks import validate_clip
         out = []

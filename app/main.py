@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import auth, clips, jobs, projects, system
+from .api import auth, campaigns, clips, jobs, projects, system
 from .config.settings import get_settings
 from .core.errors import RepurposeError
 from .core.ids import new_id
@@ -56,6 +56,7 @@ async def _domain_err(_: Request, e: RepurposeError):
 
 
 app.include_router(auth.router)
+app.include_router(campaigns.router)
 app.include_router(projects.router)
 app.include_router(jobs.router)
 app.include_router(clips.router)

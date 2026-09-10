@@ -2,6 +2,7 @@ from .base import Base, Timestamped, UUIDPk, utcnow
 from .entities import (
                        AIProvider,
                        APIToken,
+                       Campaign,
                        Candidate,
                        CandidateScore,
                        CaptionStyle,
@@ -23,6 +24,7 @@ __all__ = [
                        "AIProvider",
                        "APIToken",
                        "Base",
+                       "Campaign",
                        "Candidate",
                        "CandidateScore",
                        "CaptionStyle",

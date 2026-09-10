@@ -1,4 +1,6 @@
 import { Link, Route, Routes, useLocation } from "react-router-dom";
+import CampaignDetail from "./pages/CampaignDetail";
+import Campaigns from "./pages/Campaigns";
 import Exports from "./pages/Exports";
 import Jobs from "./pages/Jobs";
 import Overview from "./pages/Overview";
@@ -9,7 +11,8 @@ import System from "./pages/System";
 
 const NAV = [
   ["Overview", "/"], ["Projects", "/projects"], ["Jobs", "/jobs"],
-  ["Review", "/review"], ["Exports", "/exports"], ["Settings", "/settings"], ["System", "/system"],
+  ["Review", "/review"],
+  ["Campaigns", "/campaigns"], ["Exports", "/exports"], ["Settings", "/settings"], ["System", "/system"],
 ] as const;
 
 export default function App() {
@@ -33,6 +36,8 @@ export default function App() {
           <Route path="/projects" element={<Projects />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/review" element={<Review />} />
+          <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/campaign/:id" element={<CampaignDetail />} />
           <Route path="/exports" element={<Exports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/system" element={<System />} />

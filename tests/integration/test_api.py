@@ -104,3 +104,20 @@ def test_cross_user_isolation():
     mine = client.get("/api/projects", headers=h2).json()
     items = mine["items"] if isinstance(mine, dict) else mine
     assert all(p["id"] != pid for p in items)
+
+
+def test_campaigns_crud_and_gate():
+    r = client.post("/api/campaigns", json={"name": "c1", "rules": {}, "verified": False})
+    assert r.status_code == 201, r.text
+    cid = r.json()["id"]
+    assert r.json()["ready"] is False and r.json()["blockers"]
+    full = {"rate_per_1k": 1.5, "budget": "$1k", "sources": ["a.mp4"],
+            "duration": {"min": 10, "max": 30}, "hashtags": ["@x"],
+            "credit": {"required": True, "text": "@x"}, "cap": "$10"}
+    r = client.put(f"/api/campaigns/{cid}", json={"name": "c1", "rules": full, "verified": True})
+    assert r.json()["ready"] is True, r.text
+    assert client.get(f"/api/campaigns/{cid}").status_code == 200
+    v = client.post("/api/campaigns/validate",
+                    json={"campaign_id": cid, "clips": [], "job": {}}).json()
+    assert v["status"] == "NOT READY"  # no clips
+    assert client.delete(f"/api/campaigns/{cid}").status_code == 200

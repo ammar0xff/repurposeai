@@ -175,6 +175,38 @@ def cmd_doctor(a):
         sys.exit(1)
 
 
+def cmd_campaign(a):
+    from .models.entities import Campaign
+    from .services.campaigns import blockers, create_from_dict, p0_missing
+    s, db, _ = _ctx()
+    if a.action == "create":
+        rules = json.loads(open(a.rules).read())
+        c = create_from_dict(db, "local", a.name, rules, a.verified)
+        _fmt({"id": c.id, "blockers": blockers(c.rules or {}, c.verified)}, a.json)
+    elif a.action == "check":
+        c = db.query(Campaign).filter_by(id=a.campaign_id).first()
+        if not c:
+            print(json.dumps({"error": "campaign not found"}))
+            sys.exit(2)
+        _fmt({"blockers": blockers(c.rules or {}, c.verified), "p0_missing": p0_missing(c.rules or {})}, a.json)
+    elif a.action == "validate":
+        from .services.campaigns import bounds  # noqa: F401
+        from .validation.campaign import validate_job
+        c = db.query(Campaign).filter_by(id=a.campaign_id).first()
+        if not c:
+            print(json.dumps({"error": "campaign not found"}))
+            sys.exit(2)
+        clips = json.loads(open(a.clips).read()) if a.clips else []
+        job = json.loads(a.job or "{}")
+        v = validate_job(clips, c.rules or {}, job)
+        _fmt(v, a.json)
+        if v["status"] != "READY" and not a.json:
+            print("NOT READY")
+    else:
+        rows = db.query(Campaign).all()
+        _fmt([{"id": c.id, "name": c.name, "verified": c.verified} for c in rows], a.json)
+
+
 def main(argv=None):
     setup()
     ap = argparse.ArgumentParser(prog="repurpose")
@@ -194,9 +226,14 @@ def main(argv=None):
     p.add_argument("--source", default=""); p.add_argument("--params", default="{}")
     p.add_argument("--force", action="store_true")
     p = sub.add_parser("export"); p.add_argument("project")
+    p = sub.add_parser("campaign")
+    p.add_argument("action", choices=["list", "create", "check", "validate"])
+    p.add_argument("--name", default=""); p.add_argument("--rules", default="")
+    p.add_argument("--campaign-id", default=""); p.add_argument("--verified", action="store_true")
+    p.add_argument("--clips", default=""); p.add_argument("--job", default="{}")
     sub.add_parser("doctor")
     a = ap.parse_args(argv)
-    {"init": cmd_init, "ingest": cmd_ingest, "analyze": cmd_analyze,
+    {"init": cmd_init, "campaign": cmd_campaign, "ingest": cmd_ingest, "analyze": cmd_analyze,
      "transcribe": cmd_transcribe, "candidates": cmd_candidates, "rank": cmd_rank,
      "render": cmd_render, "validate": cmd_validate, "run": cmd_run,
      "export": cmd_export, "doctor": cmd_doctor}[a.cmd](a)

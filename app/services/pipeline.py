@@ -337,6 +337,7 @@ class Pipeline:
         self.db.commit()
         params = job.params or {}
         try:
+            camp = self._campaign_for(job, project, params)
             done_stages = {s.name for s in job.stages if s.status == "done"} if not force else set()
             src_key = params.get("storage_key", "")
             if "ingest" not in done_stages:
@@ -370,6 +371,30 @@ class Pipeline:
                 job.status, job.error = "failed", f"{type(e).__name__}: {e}"
                 self.db.commit()
             return {"job": job.id, "status": "failed", "error": str(e)}
+
+    def _campaign_for(self, job: ProcessingJob, project: Project, params: dict):
+        """Apply campaign policy: merge rules into config, enforce strict gate.
+        Returns the Campaign or None. Refuses production runs with blockers."""
+        cid = params.get("campaign_id", "")
+        if not cid:
+            return None
+        from ..models.entities import Campaign
+        from .campaigns import blockers, to_project_config
+        camp = self.db.query(Campaign).filter_by(id=cid).first()
+        if not camp:
+            raise ValueError("unknown campaign")
+        blk = blockers(camp.rules or {}, camp.verified)
+        if blk and not params.get("no_strict"):
+            raise ValueError(f"campaign blocked: {blk}")
+        cfg = dict(project.config or {})
+        cfg.update(to_project_config(camp.rules or {}))
+        project.config = cfg
+        job.params = {**params, "campaign_name": camp.name,
+                      "credit_used": cfg.get("credit", ""),
+                      "extra_tags": cfg.get("hashtags", [])}
+        self.db.commit()
+        log.info("campaign %s applied (strict=%s)", camp.name, not params.get("no_strict"))
+        return camp
 
     def _src_path(self, project: Project) -> str:
         a = self.db.query(MediaAsset).filter_by(

@@ -165,6 +165,15 @@ class APIToken(Base, UUIDPk, Timestamped):
     expires_at: Mapped[float] = mapped_column(Float, default=0)
 
 
+class Campaign(Base, UUIDPk, Timestamped):
+    __tablename__ = "campaigns"
+    user_id: Mapped[str] = mapped_column(String(64), index=True, default="local")
+    name: Mapped[str] = mapped_column(String(128))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    rules: Mapped[dict] = mapped_column(JSON, default=dict)
+    verified: Mapped[bool] = mapped_column(default=False)
+
+
 class SystemSetting(Base):
     __tablename__ = "system_settings"
     key: Mapped[str] = mapped_column(String(128), primary_key=True)

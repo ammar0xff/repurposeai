@@ -10,6 +10,8 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 export const get = <T,>(p: string) => req<T>("GET", p);
 export const post = <T,>(p: string, b?: unknown) => req<T>("POST", p, b);
 export const del = <T,>(p: string) => req<T>("DELETE", p);
+export const put = <T,>(p: string, b?: unknown) =>
+  req<T>("PUT", p, b);
 export interface Project { id: string; title: string; status: string; duration: number; config: Record<string, unknown>; }
 export interface Job { id: string; project_id: string; status: string; progress: number; current_stage: string; error: string; }
 export interface ClipItem { id: string; start: number; end: number; status: string;
@@ -17,3 +19,6 @@ export interface ClipItem { id: string; start: number; end: number; status: stri
   axes: Record<string, number>; score: number;
   metadata: { titles: string[]; caption: string; hashtags: string[]; chosen_title: number };
   decision: string | null; }
+export interface Campaign { id: string; name: string; version: number;
+  rules: Record<string, unknown>; verified: boolean;
+  p0_missing: string[]; blockers: string[]; ready: boolean; }

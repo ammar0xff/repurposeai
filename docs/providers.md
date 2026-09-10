@@ -27,3 +27,10 @@ Haar fallback, speaker/center/smart chain. All imports lazy.
 
 Subclass the ABC, register in the factory (`get_llm_provider`), add
 `AppEnv` config keys, document in `.env.example`, add a readiness check.
+
+## Self-hosted gateways (e.g. freellmapi)
+
+Any OpenAI-compatible gateway works as `LLM_PROVIDER=openai_compat` with
+`LLM_BASE_URL` + `LLM_MODEL` (+ `LLM_API_KEY` for bearer auth). Only transcript
+text is ever sent. The gateway stays unexposed (localhost) with the panel on
+the same box; remote workers rank heuristically off real transcripts instead.
