@@ -1,0 +1,41 @@
+# CD: sync main to homie and restart services.
+# One-time setup (repo Settings -> Secrets and variables -> Actions):
+#   HOMIE_HOST (e.g. 100.112.4.10), HOMIE_USER (ammar), HOMIE_SSH_KEY (private key).
+# Skipped automatically when secrets are absent.
+name: cd
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    if: ${{ secrets.HOMIE_SSH_KEY != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy tree (git files only, no venv/data/caches)
+        run: |
+          git archive HEAD | gzip > /tmp/tree.tgz
+          ls -la /tmp/tree.tgz
+      - name: Transfer
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOMIE_HOST }}
+          username: ${{ secrets.HOMIE_USER }}
+          key: ${{ secrets.HOMIE_SSH_KEY }}
+          source: "/tmp/tree.tgz"
+          target: "/tmp"
+      - name: Install, migrate, restart
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOMIE_HOST }}
+          username: ${{ secrets.HOMIE_USER }}
+          key: ${{ secrets.HOMIE_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/repurposeai
+            tar -xzf /tmp/tree.tgz
+            .venv/bin/pip install -q -e .
+            .venv/bin/alembic upgrade head
+            systemctl --user restart repurposeai || true
+            curl -fsS -m 15 http://127.0.0.1:8001/api/system/health

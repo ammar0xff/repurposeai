@@ -24,3 +24,13 @@ auto-selects the device from config.
 
 `docker-compose.prod.yml` adds Postgres 16 (set `DB_PASSWORD`, point
 `DATABASE_URL` at it, run `alembic upgrade head` once against it).
+
+## Continuous deployment (optional)
+
+`.github/workflows/cd.yml` syncs `main` to homie on every push and restarts
+the service. It runs only when these repo secrets exist (otherwise skipped):
+
+- `HOMIE_HOST`, `HOMIE_USER`, `HOMIE_SSH_KEY` (ed25519, no passphrase)
+
+The job runs migrations, reinstalls the package, and health-checks
+`/api/system/health` before finishing.
