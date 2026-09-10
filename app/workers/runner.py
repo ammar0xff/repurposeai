@@ -53,8 +53,8 @@ class Worker:
             if db is not None:
                 try:
                     db.close()
-                except Exception:  # noqa: BLE001 - best-effort cleanup
-                    pass
+                except Exception as e:  # noqa: BLE001 - best-effort cleanup
+                    log.debug('session close failed: %s', e)
 
     def cancel(self, job_id: str):
         from ..models.entities import ProcessingJob

@@ -58,3 +58,8 @@ Strategy: vertical slices, reuse proven whopclip core (ported, not rewritten).
 - Homie CPU cannot run PyAV/ctranslate2 wheels (SIGILL) + oomd kills whisper:
   STT availability uses a subprocess probe (never crashes the server); heavy STT
   belongs on runners (GitHub Actions, free 16GB).
+
+## Sync discipline (learned 2026-09-10)
+- Termux is source of truth. Push to GitHub; transfer Termux->homie via tar
+  of CHANGED files only. Never full-tree pull homie->Termux (it once reverted
+  a local fix). `git diff` on homie is for inspection only.
