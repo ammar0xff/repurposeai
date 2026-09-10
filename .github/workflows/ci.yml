@@ -8,17 +8,43 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,stt]"
       - run: ruff check app tests scripts
       - run: mypy app
       - run: pytest -q
+  heavy-e2e:
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: pip install -e ".[dev,stt]"
+      - name: Narrated fixture + full pipeline E2E
+        run: |
+          pip install -q edge-tts
+          python3 - <<'PYEOF'
+          import asyncio, edge_tts
+          t = ("Nobody tells you this about making money online. "
+               "I posted three clips a day for thirty days. The algorithm rewards volume. " * 4)
+          asyncio.run(edge_tts.Communicate(t, "en-US-GuyNeural").save("/tmp/narr.mp3"))
+          PYEOF
+          ffmpeg -y -v error -f lavfi -i "testsrc=size=640x360:duration=60:rate=24" -i /tmp/narr.mp3 \
+            -c:v libx264 -preset veryfast -crf 23 -c:a aac -shortest /tmp/demo.mp4
+          DATABASE_URL=sqlite:////tmp/ci.db STORAGE_PATH=/tmp/ci_store \
+            nohup python3 -m uvicorn app.main:app --port 8000 > /tmp/api.log 2>&1 &
+          for i in $(seq 1 15); do curl -fsS http://127.0.0.1:8000/api/system/health && break; sleep 4; done
+          DATABASE_URL=sqlite:////tmp/ci.db STORAGE_PATH=/tmp/ci_store \
+            python3 scripts/e2e_api.py http://127.0.0.1:8000 /tmp/demo.mp4 \
+            '{"clip_count":2,"min_duration":10,"max_duration":30}'
   frontend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: npm ci --no-audit --no-fund
-      - run: npx tsc --noEmit
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - run: ./node_modules/.bin/tsc --noEmit
       - run: npm run build
