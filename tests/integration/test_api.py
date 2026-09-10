@@ -1,6 +1,7 @@
 """Integration: API CRUD, auth, authz, jobs, review, export (needs backend deps)."""
 import os
 import sys
+import uuid as _uuid
 
 sys.path.insert(0, ".")
 
@@ -16,7 +17,6 @@ from fastapi.testclient import TestClient
 from app.api.deps import db_session
 from app.main import app
 from app.models.db import get_session_factory, init_db
-import uuid as _uuid
 
 init_db(TEST_URL)
 
