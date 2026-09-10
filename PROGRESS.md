@@ -63,3 +63,57 @@ Strategy: vertical slices, reuse proven whopclip core (ported, not rewritten).
 - Termux is source of truth. Push to GitHub; transfer Termux->homie via tar
   of CHANGED files only. Never full-tree pull homie->Termux (it once reverted
   a local fix). `git diff` on homie is for inspection only.
+
+## FINAL ENGINEERING REPORT (2026-09-10)
+
+### Architecture
+Layered, inward dependencies: web -> REST/SSE -> api -> services -> pure
+pipeline libs; providers/ behind ABCs; DB-backed worker, no Redis required.
+Same Pipeline object serves API, CLI, MCP, tests.
+
+### Implemented features
+Projects CRUD + upload/download ingest, FFprobe analysis (cached), whisper STT
+(word timestamps), scenes (PySceneDetect/ffmpeg) + silence, sentence-aware
+candidates, eligibility profiles, structured 6-axis LLM ranking (Pydantic or
+manual validation, retry, heuristic fallback, identical schema), resolver
+(word boundaries + padding + sentence pull-up), reframe strategies
+(center/face/speaker/smart/manual + chain), 5 caption styles (libass),
+tracked H264 rendering, 5 render profiles, metadata variants, FFprobe
+validation reports, keyboard review with persisted decisions, rerender without
+re-STT, export bundles + manifest + portable archives, MCP thin server,
+13-command CLI, React UI (7 pages), Docker + prod compose, 10 docs, CI.
+
+### AI providers
+LLM: OpenAI-compatible / Ollama / local-reserved / heuristic, selectable via
+LLM_PROVIDER; only transcript text sent; bearer server-side. STT:
+faster-whisper (tiny..large, int8 CPU default, CUDA-ready). No paid APIs.
+
+### Pipeline
+ingest->analyze->transcribe->segment->rank->resolve/render->validate, staged
+checkpoints, idempotent resume, cancel flags, per-clip skip-on-exists.
+
+### Database
+17 tables, UUID hex PKs, timestamps, FKs, indexes (project/job/status/score/
+created), Alembic 0001 with downgrade.
+
+### API / security / testing / deployment
+REST + SSE + OpenAPI; bearer-token auth abstraction; ownership-scoped queries;
+arg-array subprocess; traversal-proof storage; secrets only in .env (audit
+clean 2026-09-10). Tests: 19 green (14 unit anywhere + 5 integration), CI:
+ruff+mypy+pytest+tsc+vite build+heavy STT E2E narrated fixture on free runner.
+
+### Known limitations
+- No Docker daemon on build machine: images not build-tested.
+- 2GB homie: no local whisper/face (SIGILL+oomd); STT belongs on runners;
+  API+panel+review run fine there (systemd, linger on).
+- YouTube bot-checks runners: use direct mp4/asset URLs.
+- S3Storage needs boto3 + bucket env (untested live).
+
+### Performance
+Lazy ML imports, cached analysis/transcript, single FFprobe per asset,
+bounded workers, temp cleanup, int8 CPU default.
+
+### Extension points
+New LLM/STT/vision provider (subclass ABC), ranking profiles (config),
+caption styles + render profiles (dicts), storage backend (interface),
+prompt versions (prompts/ + stored version per result).
