@@ -178,9 +178,10 @@ def cmd_doctor(a):
 def cmd_campaign(a):
     from .models.entities import Campaign
     from .services.campaigns import blockers, create_from_dict, p0_missing
-    s, db, _ = _ctx()
+    _, db, _ = _ctx()
     if a.action == "create":
-        rules = json.loads(open(a.rules).read())
+        with open(a.rules) as _f:
+            rules = json.loads(_f.read())
         c = create_from_dict(db, "local", a.name, rules, a.verified)
         _fmt({"id": c.id, "blockers": blockers(c.rules or {}, c.verified)}, a.json)
     elif a.action == "check":
@@ -190,13 +191,16 @@ def cmd_campaign(a):
             sys.exit(2)
         _fmt({"blockers": blockers(c.rules or {}, c.verified), "p0_missing": p0_missing(c.rules or {})}, a.json)
     elif a.action == "validate":
-        from .services.campaigns import bounds  # noqa: F401
         from .validation.campaign import validate_job
         c = db.query(Campaign).filter_by(id=a.campaign_id).first()
         if not c:
             print(json.dumps({"error": "campaign not found"}))
             sys.exit(2)
-        clips = json.loads(open(a.clips).read()) if a.clips else []
+        if a.clips:
+            with open(a.clips) as _f:
+                clips = json.loads(_f.read())
+        else:
+            clips = []
         job = json.loads(a.job or "{}")
         v = validate_job(clips, c.rules or {}, job)
         _fmt(v, a.json)

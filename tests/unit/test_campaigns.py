@@ -1,5 +1,6 @@
 """Unit: campaign policy, blockers, validator (stdlib-only)."""
 import sys
+
 sys.path.insert(0, ".")
 
 from app.services.campaigns import blockers, bounds, p0_missing, to_project_config

@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..core.ids import new_id
 from ..models.entities import Campaign, Clip
 from ..services.campaigns import blockers, create_from_dict, p0_missing
 from ..validation.campaign import validate_job

@@ -107,17 +107,21 @@ def test_cross_user_isolation():
 
 
 def test_campaigns_crud_and_gate():
-    r = client.post("/api/campaigns", json={"name": "c1", "rules": {}, "verified": False})
+    import uuid as _uuid3
+    u3 = "u" + _uuid3.uuid4().hex[:8]
+    client.post("/api/auth/setup", json={"username": u3, "password": "longpassword3"})
+    hh = {"Authorization": "Bearer " + client.post(
+        "/api/auth/login", json={"username": u3, "password": "longpassword3"}).json()["token"]}
+    r = client.post("/api/campaigns", json={"name": "c1", "rules": {}, "verified": False}, headers=hh)
     assert r.status_code == 201, r.text
     cid = r.json()["id"]
     assert r.json()["ready"] is False and r.json()["blockers"]
     full = {"rate_per_1k": 1.5, "budget": "$1k", "sources": ["a.mp4"],
             "duration": {"min": 10, "max": 30}, "hashtags": ["@x"],
             "credit": {"required": True, "text": "@x"}, "cap": "$10"}
-    r = client.put(f"/api/campaigns/{cid}", json={"name": "c1", "rules": full, "verified": True})
+    r = client.put(f"/api/campaigns/{cid}", json={"name": "c1", "rules": full, "verified": True}, headers=hh)
     assert r.json()["ready"] is True, r.text
-    assert client.get(f"/api/campaigns/{cid}").status_code == 200
-    v = client.post("/api/campaigns/validate",
-                    json={"campaign_id": cid, "clips": [], "job": {}}).json()
+    assert client.get(f"/api/campaigns/{cid}", headers=hh).status_code == 200
+    v = client.post("/api/campaigns/validate", json={"campaign_id": cid, "clips": [], "job": {}}, headers=hh).json()
     assert v["status"] == "NOT READY"  # no clips
-    assert client.delete(f"/api/campaigns/{cid}").status_code == 200
+    assert client.delete(f"/api/campaigns/{cid}", headers=hh).status_code == 200

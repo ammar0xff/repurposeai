@@ -337,7 +337,7 @@ class Pipeline:
         self.db.commit()
         params = job.params or {}
         try:
-            camp = self._campaign_for(job, project, params)
+            self._campaign_for(job, project, params)  # merges rules, enforces gate
             done_stages = {s.name for s in job.stages if s.status == "done"} if not force else set()
             src_key = params.get("storage_key", "")
             if "ingest" not in done_stages:
