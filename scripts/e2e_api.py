@@ -23,9 +23,14 @@ def call(method, path, body=None, files=None):
     elif body is not None:
         data = json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}
+    import urllib.error
     req = urllib.request.Request(BASE + path, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return json.loads(r.read() or b"{}")
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        print(f"HTTP {e.code} on {method} {path}: {e.read()[:400]!r}", flush=True)
+        raise
 
 
 pid = call("POST", "/api/projects", {"title": "e2e", "config": CFG})["id"]
