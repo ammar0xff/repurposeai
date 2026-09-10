@@ -43,7 +43,7 @@ def readiness(st=Depends(storage_dep)):
     def stt():
         from ..providers.stt import FasterWhisperProvider
         if not FasterWhisperProvider(s.whisper_model).available():
-            raise RuntimeError("faster-whisper not installed (heuristic/STT unavailable)")
+            raise RuntimeError("faster-whisper unavailable here (missing or native libs crash); use runner hardware")
 
     def llm():
         from ..providers.llm import get_llm_provider
