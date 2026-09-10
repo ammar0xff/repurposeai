@@ -30,9 +30,9 @@ class FasterWhisperProvider(STTProvider):
             import subprocess
             import sys
             r = subprocess.run([sys.executable, '-c', 'import faster_whisper'],
-                               capture_output=True, timeout=60)
+                               capture_output=True, timeout=60, check=False)
             FasterWhisperProvider._cache = r.returncode == 0
-        except Exception:
+        except OSError:
             FasterWhisperProvider._cache = False
         return FasterWhisperProvider._cache
 

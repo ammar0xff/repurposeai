@@ -15,7 +15,8 @@ def call(method, path, body=None, files=None):
     if files:
         import uuid
         b = "----" + uuid.uuid4().hex
-        raw = open(MEDIA, "rb").read()
+        with open(MEDIA, "rb") as _f:
+            raw = _f.read()
         data = (f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; "
                 f"filename=\"demo.mp4\"\r\nContent-Type: video/mp4\r\n\r\n").encode() + raw + f"\r\n--{b}--\r\n".encode()
         headers = {"Content-Type": f"multipart/form-data; boundary={b}"}
