@@ -91,4 +91,4 @@ app.router.lifespan_context = lifespan
 try:
     app.mount("/", StaticFiles(directory="web/dist", html=True), name="web")
 except RuntimeError:
-    pass  # frontend not built yet; API-only mode
+    pass  # web/dist absent (dev checkout before frontend build); API-only mode
