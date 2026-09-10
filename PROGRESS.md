@@ -149,8 +149,9 @@ prompt versions (prompts/ + stored version per result).
 - MCP: get_campaign. CLI: campaign list/create/check/validate.
 - UI: Campaigns list + detail (policy, blockers, brief editor, verify
   toggle, gated generate), nav entry.
-- whopclip repo stays untouched (frozen); homie whopclip panel still on :8000
-  until you confirm retirement (frees ~100MB+ RAM on the 2GB box).
+- whopclip retired 2026-09-11: campaign engine fully merged (migration 0004,
+  policies, CLI/UI/MCP); old repo frozen on GitHub (`ammar0xff/whopclip`),
+  homie panel stopped & removed, local copies deleted.
 - Verified: ruff 0, mypy 0, 26 pytest green, UI 200, API authed flow live.
 
 ## Continuous deployment (homie)
