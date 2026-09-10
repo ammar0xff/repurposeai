@@ -38,7 +38,7 @@ _STOP: dict[str, bool] = {}  # process-wide cancel flags (worker + API share the
 
 class Pipeline:
     def __init__(self, db, storage: StorageProvider, settings):
-        self.db, self.storage, self.s = storage, settings
+        self.db, self.storage, self.s = db, storage, settings
 
     # ----- stage bookkeeping -----
     def _stage(self, job: ProcessingJob, name: str) -> PipelineStage:

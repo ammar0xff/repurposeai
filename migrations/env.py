@@ -10,6 +10,10 @@ from sqlalchemy import create_engine
 from app.config.settings import get_settings
 from app.models import Base  # noqa: F401  (model registration)
 
+from pathlib import Path as _P
+
+_P("./data").mkdir(parents=True, exist_ok=True)  # sqlite needs the dir, not the tables
+
 config = context.config
 target_metadata = Base.metadata
 

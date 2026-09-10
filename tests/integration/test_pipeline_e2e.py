@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, ".")
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg missing")
 
-os.environ["DATABASE_URL"] = "sqlite:////tmp/rpa_e2e.db"
+TEST_URL = "sqlite:////tmp/rpa_e2e.db"
 for f in ("/tmp/rpa_e2e.db",):
     try:
         os.unlink(f)
@@ -25,9 +25,9 @@ from app.storage.local import LocalFilesystemStorage  # noqa: E402
 
 
 def test_e2e_synthetic():
-    init_db("sqlite:////tmp/rpa_e2e.db")
+    init_db(TEST_URL)
     s = get_settings()
-    db = get_session_factory()()
+    db = get_session_factory(TEST_URL)()
     store = LocalFilesystemStorage("/tmp/rpa_store")
     pipe = Pipeline(db, store, s)
     src = "/tmp/rpa_src.mp4"

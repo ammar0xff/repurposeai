@@ -50,8 +50,11 @@ app.include_router(clips.router)
 app.include_router(system.router)
 
 
-@app.on_event("startup")
-def _startup():
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
     from .config.settings import get_settings as _gs
     from .models.db import init_db
     from .storage.local import LocalFilesystemStorage
@@ -60,11 +63,16 @@ def _startup():
     from .services.pipeline import Pipeline
     st = _gs()
     init_db()
-    LocalFilesystemStorage(st.storage_path)
-    w = Worker(lambda db: Pipeline(db, LocalFilesystemStorage(st.storage_path), st),
+    store = LocalFilesystemStorage(st.storage_path)
+    w = Worker(lambda db: Pipeline(db, store, st),
                max_jobs=st.max_concurrent_jobs)
     set_worker(w)
     w.start()
+    yield
+    w.stop()
+
+
+app.router.lifespan_context = lifespan
 
 
 try:

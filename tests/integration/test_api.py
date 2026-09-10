@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, ".")
 
-os.environ["DATABASE_URL"] = "sqlite:////tmp/rpa_test.db"
+TEST_URL = "sqlite:////tmp/rpa_test.db"
 for f in ("/tmp/rpa_test.db",):
     try:
         os.unlink(f)
@@ -13,10 +13,22 @@ for f in ("/tmp/rpa_test.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.api.deps import db_session  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models.db import init_db  # noqa: E402
+from app.models.db import get_session_factory, init_db  # noqa: E402
 
-init_db("sqlite:////tmp/rpa_test.db")
+init_db(TEST_URL)
+
+
+def _test_db():
+    db = get_session_factory(TEST_URL)()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[db_session] = _test_db
 client = TestClient(app, raise_server_exceptions=False)
 
 

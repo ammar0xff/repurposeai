@@ -20,4 +20,16 @@ def get_session_factory(url: str = ""):
 
 def init_db(url: str = "") -> None:
     """Create tables directly (dev/test). Production uses Alembic migrations."""
-    Base.metadata.create_all(get_engine(url))
+    from pathlib import Path as _P
+    from urllib.parse import urlparse
+    u = url or get_settings().database_url
+    if u.startswith("sqlite:"):
+        parts = urlparse(u)
+        # sqlite:////abs/path (netloc empty) vs sqlite:///rel/path
+        rel = parts.path.lstrip("/") if parts.netloc in ("", ".") else parts.path
+        parent = _P(rel or "./data/repurposeai.db").parent
+        if str(parent) not in ("", "."):
+            parent.mkdir(parents=True, exist_ok=True)
+        else:
+            _P("./data").mkdir(parents=True, exist_ok=True)
+    Base.metadata.create_all(get_engine(u))
