@@ -2,10 +2,11 @@
 import os
 import time
 
-from fastapi import FastAPI, Request
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .api import auth, campaigns, clips, jobs, projects, system
 from .config.settings import get_settings
@@ -88,7 +89,22 @@ async def lifespan(_app: FastAPI):
 app.router.lifespan_context = lifespan
 
 
-try:
-    app.mount("/", StaticFiles(directory="web/dist", html=True), name="web")
-except RuntimeError:
-    pass  # web/dist absent (dev checkout before frontend build); API-only mode
+WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def web(path: str) -> Response:
+    if path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    root = WEB_DIST.resolve()
+    target = (root / path).resolve()
+    if target != root and not target.is_relative_to(root):
+        raise HTTPException(status_code=400, detail="Bad request")
+    if target.is_file():
+        return FileResponse(target)
+    if "." in Path(path).name:
+        raise HTTPException(status_code=404, detail="Not Found")
+    index = root / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    raise HTTPException(status_code=404, detail="Not Found")
