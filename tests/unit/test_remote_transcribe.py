@@ -1,11 +1,10 @@
 """Unit tests for the GitHub-Actions remote STT provider (stdlib-only)."""
 import base64
 import http.client
-import io
 import json
 import shutil
 import subprocess
-import unittest.mock as mock
+from unittest import mock
 
 import pytest
 
@@ -131,12 +130,12 @@ def test_dispatch_writes_audio_under_meta_name_and_plain_meta():
         gid = dispatch(audio, meta, "ghp_x", "ammar0xff", "repurposeai")
 
     assert gid == "g1"
-    post_method, post_url, post = calls[0]
+    _post_method, post_url, post = calls[0]
     assert post_url.endswith("/gists")
     files = post["files"]
     assert files["audio.ogg"]["content"] == base64.b64encode(b"PCM").decode()
     assert json.loads(files["meta.json"]["content"])["model"] == "tiny"
-    el, url, dispatch_body = calls[1]
+    _el, url, dispatch_body = calls[1]
     assert url.endswith("/dispatches")
     assert dispatch_body["client_payload"]["gist_id"] == "g1"
 

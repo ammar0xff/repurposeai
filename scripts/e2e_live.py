@@ -215,7 +215,8 @@ def main() -> int:
             "insert into transcripts (id, project_id, engine, language, duration, "
             "words, segments, created_at, updated_at) values (?,?,?,?,?,?,?,?,?)",
             (uuid.uuid4().hex, pid, "e2e-fixture", "en", dur,
-             json.dumps(words), json.dumps(segs), now, now))
+             json.dumps(words), json.dumps(segs),
+             dt.datetime.now(dt.UTC), dt.datetime.now(dt.UTC)))
         db.commit()
         log(f"project {pid}, uploaded {key}, transcript seeded ({len(words)} words)")
     else:

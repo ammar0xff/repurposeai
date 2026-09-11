@@ -96,7 +96,7 @@ def compact_audio(ffmpeg_path: str, wav_path: str) -> bytes | None:
         with open(out, "rb") as f:
             data = f.read()
         return data if data else None
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return None
     finally:
         try:

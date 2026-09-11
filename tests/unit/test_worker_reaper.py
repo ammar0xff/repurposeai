@@ -5,7 +5,7 @@ from app.workers.runner import _is_stale
 
 
 def _dt(offset_s: int) -> datetime.datetime:
-    base = datetime.datetime(2026, 9, 11, 12, 0, 0)
+    base = datetime.datetime(2026, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
     return base + datetime.timedelta(seconds=offset_s)
 
 

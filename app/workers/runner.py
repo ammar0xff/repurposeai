@@ -9,7 +9,7 @@ from ..models.db import get_session_factory
 
 
 def _utc_naive():
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
 
 
 def _is_stale(now, last_heartbeat, updated_at, created_at, timeout: float) -> bool:
