@@ -19,9 +19,9 @@ import base64
 import hashlib
 import json
 import time
-from typing import Any
 import urllib.error
 import urllib.request
+from typing import Any
 
 from ..core.errors import MediaError
 from .stt import STTProvider
@@ -107,10 +107,7 @@ def collect(gid: str, expected_sha: str, token: str, timeout: int = TIMEOUT_SECO
     try:
         while time.time() < deadline:
             time.sleep(POLL_SECONDS)
-            try:
-                gist = _req("GET", f"{API}/gists/{gid}", token)
-            except MediaError as e:
-                raise
+            gist = _req("GET", f"{API}/gists/{gid}", token)
             try:
                 raw = _gist_file(gist, "transcript.json")
             except KeyError:
@@ -143,7 +140,8 @@ class RemoteGitHubProvider(STTProvider):
             raise MediaError(
                 "Remote (GitHub Actions) STT unavailable: set GITHUB_TOKEN, "
                 "GITHUB_OWNER, GITHUB_REPO (PAT scopes: gist + repo).")
-        audio = open(wav_path, "rb").read()
+        with open(wav_path, "rb") as f:
+            audio = f.read()
         sha = hashlib.sha256(audio).hexdigest()
         gid = dispatch(audio, {"sha256": sha, "model": model or "small",
                                "language": language}, self.token, self.owner, self.repo)
