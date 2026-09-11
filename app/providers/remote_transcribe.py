@@ -19,6 +19,8 @@ import base64
 import hashlib
 import http.client
 import json
+import os
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -28,6 +30,10 @@ from ..core.errors import MediaError
 from .stt import STTProvider
 
 API = "https://api.github.com"
+# GitHub stops inlining gist file content beyond roughly 1 MiB (rest API
+# returns `truncated: true` with empty content, silently breaking the runner).
+# Keep every mailbox file comfortably under it.
+GIST_INLINE_LIMIT = 1_000_000
 GIST_BYTES_LIMIT = 8 * 1024 * 1024  # gist file cap is 10 MiB; stay clear
 POLL_SECONDS = 15
 TIMEOUT_SECONDS = 1800
@@ -75,18 +81,50 @@ def _req(method: str, url: str, token: str, body=None,
     raise MediaError(f"github api {method} {url} failed: {last}")
 
 
+def compact_audio(ffmpeg_path: str, wav_path: str) -> bytes | None:
+    """Re-encode wav to 16k mono opus-in-ogg (~24kbps) so the mailbox stays
+    under GitHub's 1 MiB inline cap even for multi-minute clips. Returns the
+    ogg bytes, or None if compression is not possible."""
+    out = f"{wav_path}.ogg"
+    try:
+        subprocess.run(
+            [ffmpeg_path, "-y", "-v", "error", "-i", wav_path,
+             "-vn", "-c:a", "libopus", "-b:a", "24k", "-ar", "16000", "-ac", "1",
+             out],
+            check=True, timeout=300,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        with open(out, "rb") as f:
+            data = f.read()
+        return data if data else None
+    except Exception:
+        return None
+    finally:
+        try:
+            os.unlink(out)
+        except OSError:
+            pass
+
+
 def dispatch(audio: bytes, meta: dict, token: str, owner: str, repo: str) -> str:
     """Push audio+meta to a fresh private gist and dispatch a transcribe job."""
+    name = meta.get("audio", "audio.wav")
+    b64 = base64.b64encode(audio).decode()
+    # Enforce the *inlined-content* cap, not the storage cap: over it the API
+    # creates the gist but the runner sees `truncated: true` / empty content.
+    if len(b64) > GIST_INLINE_LIMIT:
+        raise MediaError(
+            f"remote STT: audio is {len(audio)//1024//1024} MiB ({len(b64)//1024//1024} "
+            f"MiB base64), over GitHub's ~1 MiB gist inline limit; use a shorter "
+            "clip or local STT.")
     if len(audio) > GIST_BYTES_LIMIT:
         raise MediaError(
-            f"remote STT: wav is {len(audio)//1024//1024} MiB, over the "
-            f"{GIST_BYTES_LIMIT//1024//1024} MiB gist mailbox limit; use a "
-            "shorter clip or local STT.")
+            f"remote STT: audio is {len(audio)//1024//1024} MiB, over the "
+            f"{GIST_BYTES_LIMIT//1024//1024} MiB gist mailbox limit.")
     gist = _req("POST", f"{API}/gists", token, {
         "description": "repurposeai remote transcription mailbox",
         "public": False,
         "files": {
-            "audio.wav": {"content": base64.b64encode(audio).decode()},
+            name: {"content": b64},
             "meta.json": {"content": json.dumps(meta)},
         },
     })
@@ -143,8 +181,10 @@ def collect(gid: str, expected_sha: str, token: str, timeout: int = TIMEOUT_SECO
 class RemoteGitHubProvider(STTProvider):
     name = "github-actions"
 
-    def __init__(self, token: str = "", owner: str = "", repo: str = ""):
+    def __init__(self, token: str = "", owner: str = "", repo: str = "",
+                 ffmpeg_path: str = ""):
         self.token, self.owner, self.repo = token, owner, repo
+        self.ffmpeg_path = ffmpeg_path
 
     def available(self) -> bool:
         return bool(self.token and self.owner and self.repo)
@@ -156,9 +196,15 @@ class RemoteGitHubProvider(STTProvider):
                 "GITHUB_OWNER, GITHUB_REPO (PAT scopes: gist + repo).")
         with open(wav_path, "rb") as f:
             audio = f.read()
+        audio_name = "audio.wav"
+        if self.ffmpeg_path:
+            ogg = compact_audio(self.ffmpeg_path, wav_path)
+            if ogg and len(ogg) < len(audio):
+                audio, audio_name = ogg, "audio.ogg"
         sha = hashlib.sha256(audio).hexdigest()
-        gid = dispatch(audio, {"sha256": sha, "model": model or "small",
-                               "language": language}, self.token, self.owner, self.repo)
+        meta = {"sha256": sha, "model": model or "small",
+                "language": language, "audio": audio_name}
+        gid = dispatch(audio, meta, self.token, self.owner, self.repo)
         payload = collect(gid, sha, self.token)
         out: dict[str, Any] = {
             "engine": payload.get("engine", "github-actions/faster-whisper"),

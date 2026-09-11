@@ -185,7 +185,7 @@ class Pipeline:
             prov = FasterWhisperProvider(model or self.s.whisper_model,
                                          self.s.whisper_device, self.s.whisper_compute_type)
             remote = RemoteGitHubProvider(self.s.github_token, self.s.github_owner,
-                                          self.s.github_repo)
+                                          self.s.github_repo, self.s.ffmpeg_path)
             choice = pick_stt(mode, prov.available(), remote.available())
             if choice == "local":
                 tr = prov.transcribe(wav, model or self.s.whisper_model)

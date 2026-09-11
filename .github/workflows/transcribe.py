@@ -53,16 +53,23 @@ def _req(method, url, tries=4, timeout=120):
 def main() -> int:
     gist = _req("GET", f"{API}/gists/{GID}")
     files = gist["files"]
-    audio = base64.b64decode(files["audio.wav"]["content"])
+    if not files.get("meta.json", {}).get("content"):
+        raise RuntimeError(
+            "gist meta.json is empty/truncated (clip too long for the mailbox?)")
     meta = json.loads(files["meta.json"]["content"])
-    open("audio.wav", "wb").write(audio)
+    audio_name = meta.get("audio", "audio.wav")
+    if not files.get(audio_name, {}).get("content"):
+        raise RuntimeError(
+            f"gist {audio_name} is empty/truncated (clip too long for the mailbox?)")
+    audio = base64.b64decode(files[audio_name]["content"])
+    open(audio_name, "wb").write(audio)
 
     from faster_whisper import WhisperModel  # type: ignore
 
     model = meta.get("model", "small")
     m = WhisperModel(model, device="cpu", compute_type="int8")
     segs, info = m.transcribe(
-        "audio.wav", word_timestamps=True, language=meta.get("language"))
+        audio_name, word_timestamps=True, language=meta.get("language"))
     words, segments = [], []
     for s in segs:
         segments.append({"text": s.text.strip(),

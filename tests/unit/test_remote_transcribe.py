@@ -1,7 +1,10 @@
 """Unit tests for the GitHub-Actions remote STT provider (stdlib-only)."""
+import base64
 import http.client
 import io
 import json
+import shutil
+import subprocess
 import unittest.mock as mock
 
 import pytest
@@ -11,6 +14,8 @@ from app.providers.remote_transcribe import (
     RemoteGitHubProvider,
     _gist_file,
     _req,
+    compact_audio,
+    dispatch,
     pick_stt,
     verify_result,
 )
@@ -109,3 +114,89 @@ def test_gist_file_returns_plain_json_content():
     gist = {"files": {"transcript.json": {"content": content}}}
     assert _gist_file(gist, "transcript.json") == content
     assert json.loads(_gist_file(gist, "transcript.json"))["model"] == "tiny"
+
+
+def test_dispatch_writes_audio_under_meta_name_and_plain_meta():
+    gist = {"id": "g1"}
+    calls = []
+
+    def fake_req(method, url, token, body=None, **kw):
+        calls.append((method, url, body))
+        return gist
+
+    with mock.patch("app.providers.remote_transcribe._req", side_effect=fake_req):
+        audio = b"PCM"
+        meta = {"sha256": "abc", "model": "tiny", "language": None,
+                "audio": "audio.ogg"}
+        gid = dispatch(audio, meta, "ghp_x", "ammar0xff", "repurposeai")
+
+    assert gid == "g1"
+    post_method, post_url, post = calls[0]
+    assert post_url.endswith("/gists")
+    files = post["files"]
+    assert files["audio.ogg"]["content"] == base64.b64encode(b"PCM").decode()
+    assert json.loads(files["meta.json"]["content"])["model"] == "tiny"
+    el, url, dispatch_body = calls[1]
+    assert url.endswith("/dispatches")
+    assert dispatch_body["client_payload"]["gist_id"] == "g1"
+
+
+def test_dispatch_rejects_audio_over_inline_cap():
+    with mock.patch("app.providers.remote_transcribe._req") as req:
+        with pytest.raises(MediaError, match="inline limit"):
+            dispatch(b"\x00" * 1_100_000,
+                     {"sha256": "abc", "model": "tiny"}, "ghp_x", "o", "r")
+        req.assert_not_called()
+
+
+def _sine_wav(path, seconds=1.0, rate=16000):
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
+         "-ar", str(rate), "-ac", "1", path],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None,
+                    reason="ffmpeg required to generate fixtures")
+def test_compact_audio_shrinks_and_produces_ogg():
+    wav = "/tmp/rpa-compact-test.wav"
+    _sine_wav(wav, seconds=60)
+    with open(wav, "rb") as f:
+        raw = f.read()
+    ogg = compact_audio("ffmpeg", wav)
+    assert ogg is not None
+    assert ogg.startswith(b"OggS")
+    assert len(ogg) < len(raw)  # 60s of 16k/16-bit wav is ~1.9 MiB
+    import os
+    os.unlink(wav)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None,
+                    reason="ffmpeg required to generate fixtures")
+def test_provider_compresses_before_dispatch_when_ffmpeg_configured():
+    wav = "/tmp/rpa-provider-compress.wav"
+    _sine_wav(wav, seconds=60)
+    p = RemoteGitHubProvider("ghp_x", "ammar0xff", "repurposeai", "ffmpeg")
+    seen = {}
+
+    def fake_dispatch(audio, meta, token, owner, repo):
+        seen.update(audio=audio, meta=meta)
+        return "g1"
+
+    def fake_collect(gid, sha, token):
+        return {"engine": "x", "language": None, "duration": 1.0,
+                "words": [{"w": "hi", "start": 0, "end": 1}], "segments": []}
+
+    with mock.patch("app.providers.remote_transcribe.dispatch",
+                    side_effect=fake_dispatch), \
+            mock.patch("app.providers.remote_transcribe.collect",
+                       side_effect=fake_collect):
+        out = p.transcribe(wav, model="tiny")
+
+    assert seen["audio"].startswith(b"OggS")
+    assert seen["meta"]["audio"] == "audio.ogg"
+    assert seen["meta"]["sha256"] == __import__("hashlib").sha256(seen["audio"]).hexdigest()
+    assert out["engine"] == "x"
+    import os
+    os.unlink(wav)
