@@ -60,21 +60,48 @@ def probe_duration(media: str, ffprobe: str = "ffprobe") -> float:
     return float(json.loads(out.stdout)["format"]["duration"])
 
 
+def _speech_track() -> str:
+    """Return an ffmpeg lavfi input string for a ~30s speech track, or the
+    sine-tone fallback when the sample cannot be downloaded. The remote STT
+    path needs real words, not a tone."""
+    import os
+    import urllib.error
+    import urllib.request
+
+    sample = "/tmp/rpa-e2e-jfk.flac"
+    try:
+        if not os.path.exists(sample):
+            urllib.request.urlretrieve(
+                "https://github.com/openai/whisper/raw/main/tests/jfk.flac",
+                sample)
+        if os.path.getsize(sample) > 0:
+            return f"-i {sample}"
+    except (urllib.error.URLError, OSError):
+        pass
+    return "-f lavfi -i sine=frequency=440:duration=30"
+
+
 def make_media(media: str) -> None:
-    log("generating synthetic source (concatenated scenes + tone audio)")
-    subprocess.run([
-        "ffmpeg", "-y", "-v", "error",
-        "-f", "lavfi", "-i", "testsrc2=size=640x360:duration=10:rate=20",
-        "-f", "lavfi", "-i", "testsrc2=size=640x360:duration=10:rate=20",
-        "-f", "lavfi", "-i", "testsrc2=size=640x360:duration=10:rate=20",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=30",
-        "-filter_complex",
-        ("[0:v]hue=h=0[v0];[1:v]hue=h=45[v1];[2:v]hue=h=90[v2];"
-         "[v0][v1][v2]concat=n=3:v=1:a=0[v]"),
-        "-map", "[v]", "-map", "3:a",
-        "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
-        "-movflags", "+faststart", "-shortest", media,
-    ], check=True, timeout=300)
+    import shlex
+
+    log("generating synthetic source (concatenated scenes + speech audio)")
+    speech = _speech_track()
+    subprocess.run(
+        shlex.split(
+            "ffmpeg -y -v error "
+            "-f lavfi -i testsrc2=size=640x360:duration=10:rate=20 "
+            "-f lavfi -i testsrc2=size=640x360:duration=10:rate=20 "
+            "-f lavfi -i testsrc2=size=640x360:duration=10:rate=20 "
+            f"{speech} "
+            "-filter_complex "
+            "\"[0:v]hue=h=0[v0];[1:v]hue=h=45[v1];[2:v]hue=h=90[v2];"
+            "[v0][v1][v2]concat=n=3:v=1:a=0[v];"
+            "[3:a]apad,atrim=0:30[a]\" "
+            "-map [v] -map [a] "
+            "-c:v libx264 -preset ultrafast -c:a aac "
+            "-movflags +faststart -t 30 " + media),
+        check=True, timeout=300,
+    )
 
 
 def make_transcript(duration: float) -> tuple[list, list]:
