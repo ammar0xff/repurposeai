@@ -78,10 +78,10 @@ def _get_bytes(url: str, tries: int = 3, timeout: int = 120) -> bytes:
 def main() -> int:
     gist = _req("GET", f"{API}/gists/{GID}")
     files = gist["files"]
-    if not files.get("meta.json", {}).get("content"):
-        raise RuntimeError(
-            "gist meta.json is empty/truncated (clip too long for the mailbox?)")
-    meta = json.loads(files["meta.json"]["content"])
+    meta_info = files.get("meta.json")
+    if not meta_info or not meta_info.get("raw_url"):
+        raise RuntimeError("gist meta.json missing from mailbox")
+    meta = json.loads(_get_bytes(meta_info["raw_url"]))
     audio_name = meta.get("audio", "audio.wav")
     nparts = int(meta.get("parts") or 0)
     if nparts:

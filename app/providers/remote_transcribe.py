@@ -150,6 +150,31 @@ def verify_result(payload: dict, expected_sha: str) -> None:
         raise MediaError("remote STT: transcript.json has no words.")
 
 
+def _get_bytes(url: str, token: str, tries: int = 3, timeout: int = 120) -> bytes:
+    """Fetch a gist file's raw_url - the REST `content` field is truncated
+    past the aggregate ~1 MiB inline cap, but raw_url serves the full stored
+    bytes (per-file cap 10 MiB), regardless of `truncated` flags."""
+    last = None
+    for attempt in range(tries):
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"token {token}",
+                     "User-Agent": "repurposeai-remote-stt"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == tries - 1:
+                raise MediaError(f"github raw {url} -> {e.code}") from e
+            last = f"{e.code}"
+        except (http.client.IncompleteRead, urllib.error.URLError,
+                TimeoutError) as e:
+            last = f"{e.__class__.__name__}: {e}"
+        time.sleep(1 + attempt * 2)
+    raise MediaError(f"github raw fetch failed: {last}")
+
+
 def collect(gid: str, expected_sha: str, token: str, timeout: int = TIMEOUT_SECONDS) -> dict:
     """Poll the gist for transcript.json; verify; delete the mailbox."""
     deadline = time.time() + timeout
@@ -158,11 +183,20 @@ def collect(gid: str, expected_sha: str, token: str, timeout: int = TIMEOUT_SECO
         while time.time() < deadline:
             time.sleep(POLL_SECONDS)
             gist = _req("GET", f"{API}/gists/{gid}", token)
-            try:
-                raw = _gist_file(gist, "transcript.json")
-            except KeyError:
+            info = gist.get("files", {}).get("transcript.json")
+            if not info:
                 continue  # runner still working
-            payload = json.loads(raw)
+            raw = info.get("content") or ""
+            if not raw or info.get("truncated") or not raw.lstrip().startswith("{"):
+                # transcript.json easily exceeds the aggregate inline cap and
+                # comes back truncated/empty; pull the authoritative bytes.
+                if not info.get("raw_url"):
+                    continue
+                raw = _get_bytes(info["raw_url"], token).decode("utf-8", "replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue  # runner may be mid-upload; keep polling
             verify_result(payload, expected_sha)
             mine = payload
             break
