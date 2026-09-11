@@ -1,0 +1,6 @@
+[Unit]
+Description=RepurposeAI watchdog (health + deploy status)
+
+[Service]
+Type=oneshot
+ExecStart=%h/repurposeai/deploy/watch.sh

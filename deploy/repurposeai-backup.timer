@@ -1,0 +1,10 @@
+[Unit]
+Description=RepurposeAI nightly backup (03:00)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=repurposeai-backup.service
+
+[Install]
+WantedBy=timers.target

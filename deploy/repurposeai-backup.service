@@ -1,0 +1,6 @@
+[Unit]
+Description=RepurposeAI nightly backup (rpa.db + data/projects)
+
+[Service]
+Type=oneshot
+ExecStart=%h/repurposeai/deploy/backup.sh

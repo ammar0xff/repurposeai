@@ -7,6 +7,10 @@ set -euo pipefail
 
 REPO="$HOME/repurposeai"
 DB_URL="sqlite:///./data/rpa.db"
+STATUS_FILE="$HOME/repurposeai-deploy-status"
+
+# Surface any failure to the 5-min watchdog (~/repurposeai-health.status).
+trap 'printf "fail %s %s\n" "$(date -Is)" "$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)" > "$STATUS_FILE"' ERR
 
 cd "$REPO"
 git fetch origin -q
@@ -16,6 +20,7 @@ if git diff --quiet HEAD origin/main; then
 fi
 
 echo "[deploy] $(date -Is) applying $(git rev-parse --short origin/main)"
+rm -f "$STATUS_FILE"
 git reset --hard -q origin/main
 .venv/bin/pip install -q -e .
 export DATABASE_URL="$DB_URL"
@@ -37,4 +42,6 @@ if [ "${NEEDS_STAMP:-0}" = "1" ]; then
 fi
 .venv/bin/alembic upgrade head
 systemctl --user restart repurposeai
+SHA="$(git rev-parse --short HEAD)"
 echo "[deploy] ok $(date -Is)"
+printf 'ok %s %s\n' "$(date -Is)" "$SHA" > "$STATUS_FILE"
