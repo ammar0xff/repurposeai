@@ -42,6 +42,7 @@ class ProcessingJob(Base, UUIDPk, Timestamped):
     current_stage: Mapped[str] = mapped_column(String(32), default="queued")
     error: Mapped[str] = mapped_column(Text, default="")
     params: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_heartbeat: Mapped[datetime.datetime | None] = mapped_column(nullable=True)
     project: Mapped[Project] = relationship(back_populates="jobs")
     stages: Mapped[list["PipelineStage"]] = relationship(back_populates="job",
                                                          cascade="all, delete-orphan")

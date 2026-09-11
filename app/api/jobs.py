@@ -1,10 +1,11 @@
-"""Jobs: list, detail (stages+progress), SSE stream, cancel."""
+"""Jobs: list, detail (stages+progress), SSE stream, cancel, retry."""
 import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from ..core.logging import log
 from ..models.entities import PipelineStage, ProcessingJob
 from .deps import current_user, db_session
 
@@ -45,7 +46,6 @@ def cancel(jid: str, db=Depends(db_session), _u=Depends(current_user)):
     j = db.query(ProcessingJob).filter_by(id=jid).first()
     if not j:
         raise HTTPException(404, "job not found")
-    from ..core.logging import log
     try:
         get_worker().cancel(jid)
     except (AssertionError, RuntimeError) as e:
@@ -53,6 +53,31 @@ def cancel(jid: str, db=Depends(db_session), _u=Depends(current_user)):
         j.status = "cancelled"
         db.commit()
     return {"cancelled": jid}
+
+
+@router.post("/{jid}/retry")
+def retry(jid: str, db=Depends(db_session), _u=Depends(current_user)):
+    """Resume a terminal failed/cancelled job. Pipeline skips done stages, so a
+    mid-job crash re-runs from the interrupted stage without re-ingesting."""
+    from ..workers import get_worker
+    j = db.query(ProcessingJob).filter_by(id=jid).first()
+    if not j:
+        raise HTTPException(404, "job not found")
+    if j.status in ("queued", "running"):
+        raise HTTPException(409, "job already active")
+    j.status, j.error, j.progress = "queued", "", 0
+    j.current_stage, j.last_heartbeat = "queued", None
+    for st in j.stages:
+        if st.status != "done":
+            st.status, st.error, st.progress = "pending", "", 0
+            st.started_at = st.completed_at = None
+    db.commit()
+    log.info("retry job: %s", jid)
+    try:
+        get_worker().submit(j.id)
+    except (AssertionError, RuntimeError) as e:
+        log.warning("retry submit deferred (%s); dispatcher will pick up", e)
+    return {"job_id": j.id, "status": "queued"}
 
 
 @router.get("/{jid}/events")

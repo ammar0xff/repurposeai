@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 2048
     max_concurrent_jobs: int = 2
+    worker_stale_timeout: int = 1800  # running job with no heartbeat for >N s is reaped as failed
     cors_origins: str = "http://localhost:5173,http://localhost:8000"
     auth_token: str = ""
     port: int = 8000

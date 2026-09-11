@@ -15,7 +15,13 @@ mkdir -p "$DEST"
 if command -v sqlite3 >/dev/null 2>&1; then
   sqlite3 "$REPO/data/rpa.db" ".backup '$DEST/rpa.db'"
 else
-  cp "$REPO/data/rpa.db" "$DEST/rpa.db"
+  # WAL-safe fallback via Python's online backup API (a plain `cp` would miss
+  # committed data still sitting in -wal).
+  "$REPO/.venv/bin/python" - "$REPO/data/rpa.db" "$DEST/rpa.db" <<'PY'
+import sqlite3, sys
+src, dst = sys.argv[1], sys.argv[2]
+sqlite3.connect(src).backup(sqlite3.connect(dst))
+PY
 fi
 
 # Project assets (media, renders, exports) - best effort if dir missing.

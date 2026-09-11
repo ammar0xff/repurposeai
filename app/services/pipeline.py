@@ -47,6 +47,10 @@ class Pipeline:
         self.db, self.storage, self.s = db, storage, settings
 
     # ----- stage bookkeeping -----
+    def _heartbeat(self, job: ProcessingJob):
+        job.last_heartbeat = _utc()
+        # no commit here: callers commit with their own mutation
+
     def _stage(self, job: ProcessingJob, name: str) -> PipelineStage:
         st = self.db.query(PipelineStage).filter_by(job_id=job.id, name=name).first()
         if not st:
@@ -59,6 +63,7 @@ class Pipeline:
         st = self._stage(job, name)
         st.status, st.started_at, st.error = "running", _utc(), ""
         job.current_stage, job.status = name, "running"
+        self._heartbeat(job)
         self.db.commit()
         set_ctx(stage=name)
         log.info("stage begin: %s", name)
@@ -67,12 +72,14 @@ class Pipeline:
     def _done(self, job: ProcessingJob, st: PipelineStage, progress: int):
         st.status, st.completed_at, st.progress = "done", _utc(), 100
         job.progress = progress
+        self._heartbeat(job)
         self.db.commit()
         log.info("stage done: %s", st.name)
 
     def _fail(self, job: ProcessingJob, st: PipelineStage, e: Exception):
         st.status, st.error, st.completed_at = "failed", f"{type(e).__name__}: {e}", _utc()
         job.status, job.error = "failed", f"{type(e).__name__}: {e}"
+        self._heartbeat(job)
         self.db.commit()
         log.error("stage failed: %s: %s", st.name, e)
 
@@ -295,6 +302,7 @@ class Pipeline:
         for r in rows[:n]:
             if self._cancelled(job):
                 return {"rendered": done, "cancelled": True}
+            self._heartbeat(job)  # render can run minutes; keep liveness fresh
             exists = self.db.query(Clip).filter_by(candidate_id=r.id).first()
             if exists:  # idempotent resume
                 done += 1
@@ -352,6 +360,7 @@ class Pipeline:
         project = self.db.query(Project).filter_by(id=job.project_id).first()
         set_ctx(job_id=job.id, project_id=project.id)
         job.status, job.error = "running", ""
+        self._heartbeat(job)
         self.db.commit()
         params = job.params or {}
         try:

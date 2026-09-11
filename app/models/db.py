@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
@@ -13,11 +13,26 @@ from .base import Base
 logger = logging.getLogger("repurposeai.db")
 
 
+def _set_sqlite_pragmas(dbapi_conn, _record):
+    """Production-safe SQLite: WAL reads/writes, 10s busy wait, FKs enforced."""
+    cur = dbapi_conn.cursor()
+    try:
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=10000")
+        cur.execute("PRAGMA foreign_keys=ON")
+    finally:
+        cur.close()
+
+
 def get_engine(url: str = ""):
     url = url or get_settings().database_url
     kw: dict = {"future": True}
     if url.startswith("sqlite"):
         kw["connect_args"] = {"check_same_thread": False}
+        eng = create_engine(url, **kw)
+        event.listen(eng, "connect", _set_sqlite_pragmas)
+        return eng
     return create_engine(url, **kw)
 
 
