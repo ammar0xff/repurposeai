@@ -168,3 +168,18 @@ prompt versions (prompts/ + stored version per result).
   `alembic_version`; script now stamps head to adopt such DBs before upgrading.
 - Setup (one-time): copy deploy/repurposeai-cd.{service,timer}, enable timer,
   origin remote -> SSH, deploy key installed.
+
+## Ops hardening (2026-09-11)
+- Nightly backup: repurposeai-backup.timer (03:00) -> deploy/backup.sh:
+  sqlite .backup of rpa.db + tar of data/projects under ~/backups/rpa/<ts>/,
+  14-snapshot rotation. Verified: snapshot created (projects.tar.gz 1.3MB).
+- Watchdog: repurposeai-watch.timer (5 min) -> deploy/watch.sh: probes
+  /api/system/health and surfaces CD result to ~/repurposeai-health.status
+  (errors appended to ~/repurposeai-errors.log). pull_deploy.sh now writes
+  ~/repurposeai-deploy-status (ok|fail + sha) and on ERR via trap.
+- Removed legacy phantom ~/repurposeai/data/repurposeai.db (0 projects, from
+  the old alembic.ini path); only data/rpa.db + data/projects remain.
+- Runbook: docs/ops.md (services, status files, restore drill, incident
+  response, DB/deploy-key facts).
+- Note: a script change to pull_deploy.sh lands on the deploy AFTER the one
+  that applies it (bash buffers the pre-reset file) - expected, not a bug.
