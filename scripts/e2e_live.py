@@ -10,10 +10,13 @@ transcript is written directly into the prod DB the same way a transcript
 produced on a runner would be stored. Everything else uses real services.
 
 Usage:  python3 scripts/e2e_live.py <base> <media> <sqlite_db> [--keep]
+          [--no-seed] [--stt auto|local|github]
   base:      http://127.0.0.1:8001
   media:     path to an mp4 (generated automatically if it doesn't exist)
   sqlite_db: path to the production sqlite file (e.g. data/rpa.db)
   --keep:    keep the test project + user after the run (default: clean up)
+  --no-seed: do NOT seed a transcript -- real STT runs (e.g. remote via
+             GitHub Actions when --stt github / STT_PROVIDER=auto).
 """
 import argparse
 import datetime as dt
@@ -154,6 +157,8 @@ def main() -> int:
     ap.add_argument("media")
     ap.add_argument("sqlite_db")
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--no-seed", action="store_true")
+    ap.add_argument("--stt", choices=["auto", "local", "github"], default="")
     args = ap.parse_args()
 
     if not os.path.exists(args.media):
@@ -177,18 +182,23 @@ def main() -> int:
     key = api._req("POST", f"/api/projects/{pid}/upload",
                    files=args.media)["storage_key"]
 
-    words, segs = make_transcript(dur)
-    now = dt.datetime.now(dt.UTC).isoformat()
-    db.execute(
-        "insert into transcripts (id, project_id, engine, language, duration, "
-        "words, segments, created_at, updated_at) values (?,?,?,?,?,?,?,?,?)",
-        (uuid.uuid4().hex, pid, "e2e-fixture", "en", dur,
-         json.dumps(words), json.dumps(segs), now, now))
-    db.commit()
-    log(f"project {pid}, uploaded {key}, transcript seeded ({len(words)} words)")
+    if not args.no_seed:
+        words, segs = make_transcript(dur)
+        db.execute(
+            "insert into transcripts (id, project_id, engine, language, duration, "
+            "words, segments, created_at, updated_at) values (?,?,?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, pid, "e2e-fixture", "en", dur,
+             json.dumps(words), json.dumps(segs), now, now))
+        db.commit()
+        log(f"project {pid}, uploaded {key}, transcript seeded ({len(words)} words)")
+    else:
+        log(f"project {pid}, uploaded {key}, NO seed (real STT, stt={args.stt or 'auto'})")
 
+    params = dict(CFG["job_params"])
+    if args.stt:
+        params["stt_provider"] = args.stt
     jid = api._req("POST", f"/api/projects/{pid}/process",
-                   {"upload_key": key, "params": CFG["job_params"]})["job_id"]
+                   {"upload_key": key, "params": params})["job_id"]
     log(f"job {jid} queued; polling...")
     deadline = time.time() + 900
     job = {}
