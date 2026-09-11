@@ -19,7 +19,7 @@ import urllib.request
 
 API = "https://api.github.com"
 GID = os.environ["GID"]
-TOKEN = os.environ["GH_TOKEN"]
+TOKEN = os.environ["GH_TOKEN"].strip()
 
 
 def _req(method, url):

@@ -44,6 +44,7 @@ def pick_stt(mode: str, local_ok: bool, remote_ok: bool) -> str:
 
 
 def _req(method: str, url: str, token: str, body=None) -> dict:
+    token = token.strip()
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(
         url, data=data, method=method,
