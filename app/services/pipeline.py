@@ -299,7 +299,7 @@ class Pipeline:
                 # captions validation needs the .ass sidecar beside the clip
                 ass_tmp = Path(tmp).with_suffix(".ass")
                 if ass_tmp.exists():
-                    self.storage.put_file(f"{Path(key).with_suffix('.ass')}", ass_tmp)
+                    self.storage.put_file(f"{Path(key).with_suffix('.ass')}", str(ass_tmp))
                 vrep = validate_clip(self.storage.get_path(key), {
                     "width": PROFILES[profile]["w"], "height": PROFILES[profile]["h"],
                     "min_duration": cfg.get("min_duration", 15),
