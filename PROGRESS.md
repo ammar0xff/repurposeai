@@ -183,3 +183,21 @@ prompt versions (prompts/ + stored version per result).
   response, DB/deploy-key facts).
 - Note: a script change to pull_deploy.sh lands on the deploy AFTER the one
   that applies it (bash buffers the pre-reset file) - expected, not a bug.
+
+## Live production E2E (2026-09-11)
+- First full pipeline run on HOMIE's real API/worker/DB, not a runner fixture.
+  scripts/e2e_live.py: synthetic source (3 concat'd testsrc2 scenes + tone
+  audio) -> auth via setup/login (throwaway user) -> project -> upload ->
+  seed Transcript directly in prod DB (homie has no whisper; cached-transcript
+  path short-circuits STT) -> process -> poll -> approve -> export.
+- RESULT: job ready_for_review, 3 clips rendered 1080x1920 all validation
+  READY, export manifest 3 clips, EXPORT-OK. Artifacts cleaned up (FK-aware).
+- Found + fixed a prod bug while reading the render path: renderer wrote the
+  .ass sidecar only under /tmp, so validate_clip's captions check (needs the
+  sidecar beside the stored mp4) could never pass -> clips always "failed".
+  pipeline.resolve_render now also put_file()s the .ass beside the clip
+  (3aff448 + mypy str fix 2818c43). CI green on a3cae37.
+- Cleanup: FK-aware purge deletes per-table FKs (pipeline_stages.job_id,
+  generated_metadata/review_decisions.clip_id, etc.). Homie now: 1 user (the
+  admin), 3 pre-existing projects, no e2e rows.
+- Health: homie at a3cae37, deploy-status ok, health OK.
