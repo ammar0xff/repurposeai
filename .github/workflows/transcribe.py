@@ -54,7 +54,7 @@ def main() -> int:
     gist = _req("GET", f"{API}/gists/{GID}")
     files = gist["files"]
     audio = base64.b64decode(files["audio.wav"]["content"])
-    meta = json.loads(base64.b64decode(files["meta.json"]["content"]))
+    meta = json.loads(files["meta.json"]["content"])
     open("audio.wav", "wb").write(audio)
 
     from faster_whisper import WhisperModel  # type: ignore

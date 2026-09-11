@@ -103,7 +103,7 @@ def _gist_file(gist: dict, name: str) -> str:
     files = gist.get("files", {})
     if name not in files:
         raise KeyError(name)
-    return base64.b64decode(files[name]["content"]).decode("utf-8")
+    return files[name]["content"]
 
 
 def verify_result(payload: dict, expected_sha: str) -> None:

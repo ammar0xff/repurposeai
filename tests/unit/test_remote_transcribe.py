@@ -9,6 +9,7 @@ import pytest
 from app.core.errors import MediaError
 from app.providers.remote_transcribe import (
     RemoteGitHubProvider,
+    _gist_file,
     _req,
     pick_stt,
     verify_result,
@@ -98,3 +99,13 @@ def test_req_gives_up_after_tries_and_raises_mediarerror():
         with pytest.raises(MediaError, match="(?i)incomplete"):
             _req("GET", "https://api.github.com/x", "ghp_ tkn", tries=3)
         assert uo.call_count == 3
+
+
+def test_gist_file_returns_plain_json_content():
+    # JSON files on the gist are plain text (only audio.wav is base64);
+    # parsing must not base64-decode them, even for awkward lengths (1 mod 4).
+    content = json.dumps({"model": "tiny", "x": 9})
+    assert len(content) % 4 == 1
+    gist = {"files": {"transcript.json": {"content": content}}}
+    assert _gist_file(gist, "transcript.json") == content
+    assert json.loads(_gist_file(gist, "transcript.json"))["model"] == "tiny"
