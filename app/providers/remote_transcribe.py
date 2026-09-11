@@ -113,6 +113,10 @@ def compact_audio(ffmpeg_path: str, wav_path: str) -> bytes | None:
 
 def dispatch(parts: list[bytes], meta: dict, token: str, owner: str, repo: str) -> str:
     """Push audio parts + meta to a fresh private gist and dispatch a job."""
+    if not parts or len(parts) > MAX_PARTS:
+        raise MediaError(
+            f"remote STT: audio needs {len(parts)} parts, over the "
+            f"{MAX_PARTS}-part gist mailbox cap.")
     files: dict[str, dict[str, str]] = {}
     for i, part in enumerate(parts):
         files[f"part.{i}"] = {"content": base64.b64encode(part).decode()}

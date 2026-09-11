@@ -115,7 +115,7 @@ def test_gist_file_returns_plain_json_content():
     assert json.loads(_gist_file(gist, "transcript.json"))["model"] == "tiny"
 
 
-def test_dispatch_writes_audio_under_meta_name_and_plain_meta():
+def test_dispatch_writes_audio_parts_and_plain_meta():
     gist = {"id": "g1"}
     calls = []
 
@@ -124,27 +124,28 @@ def test_dispatch_writes_audio_under_meta_name_and_plain_meta():
         return gist
 
     with mock.patch("app.providers.remote_transcribe._req", side_effect=fake_req):
-        audio = b"PCM"
         meta = {"sha256": "abc", "model": "tiny", "language": None,
-                "audio": "audio.ogg"}
-        gid = dispatch(audio, meta, "ghp_x", "ammar0xff", "repurposeai")
+                "audio": "audio.ogg", "parts": 2}
+        gid = dispatch([b"PCM-a", b"PCM-b"], meta, "ghp_x", "ammar0xff", "repurposeai")
 
     assert gid == "g1"
     _post_method, post_url, post = calls[0]
     assert post_url.endswith("/gists")
     files = post["files"]
-    assert files["audio.ogg"]["content"] == base64.b64encode(b"PCM").decode()
-    assert json.loads(files["meta.json"]["content"])["model"] == "tiny"
+    assert files["part.0"]["content"] == base64.b64encode(b"PCM-a").decode()
+    assert files["part.1"]["content"] == base64.b64encode(b"PCM-b").decode()
+    assert json.loads(files["meta.json"]["content"])["parts"] == 2
     _el, url, dispatch_body = calls[1]
     assert url.endswith("/dispatches")
     assert dispatch_body["client_payload"]["gist_id"] == "g1"
 
 
-def test_dispatch_rejects_audio_over_inline_cap():
+def test_dispatch_rejects_audio_over_part_cap():
     with mock.patch("app.providers.remote_transcribe._req") as req:
-        with pytest.raises(MediaError, match="inline limit"):
-            dispatch(b"\x00" * 1_100_000,
-                     {"sha256": "abc", "model": "tiny"}, "ghp_x", "o", "r")
+        with pytest.raises(MediaError, match="part"):
+            dispatch([b"\x00"] * 25,
+                     {"sha256": "abc", "model": "tiny", "parts": 25},
+                     "ghp_x", "o", "r")
         req.assert_not_called()
 
 
@@ -179,8 +180,8 @@ def test_provider_compresses_before_dispatch_when_ffmpeg_configured():
     p = RemoteGitHubProvider("ghp_x", "ammar0xff", "repurposeai", "ffmpeg")
     seen = {}
 
-    def fake_dispatch(audio, meta, token, owner, repo):
-        seen.update(audio=audio, meta=meta)
+    def fake_dispatch(parts, meta, token, owner, repo):
+        seen.update(parts=parts, meta=meta)
         return "g1"
 
     def fake_collect(gid, sha, token):
@@ -193,9 +194,11 @@ def test_provider_compresses_before_dispatch_when_ffmpeg_configured():
                        side_effect=fake_collect):
         out = p.transcribe(wav, model="tiny")
 
-    assert seen["audio"].startswith(b"OggS")
+    assert seen["parts"][0].startswith(b"OggS")
+    assert len(seen["parts"]) == 1  # 60s 16k wav compresses below one part
     assert seen["meta"]["audio"] == "audio.ogg"
-    assert seen["meta"]["sha256"] == __import__("hashlib").sha256(seen["audio"]).hexdigest()
+    assert seen["meta"]["parts"] == 1
+    assert seen["meta"]["sha256"] == __import__("hashlib").sha256(seen["parts"][0]).hexdigest()
     assert out["engine"] == "x"
     import os
     os.unlink(wav)
