@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       gist_id:
-        description: "gist id holding audio.wav + meta.json"
+        description: gist id holding audio.wav + meta.json
         required: true
 
 permissions:
@@ -28,58 +28,6 @@ jobs:
           else
             echo "GID=${{ inputs.gist_id }}" >> "$GITHUB_ENV"
           fi
-      - name: Fetch audio + meta from gist
-        run: |
-          curl -sSL -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/gists/${GID}" -o gist.json
-          python3 - <<'PY'
-          import base64, json
-          g = json.load(open("gist.json"))
-          fs = g["files"]
-          open("audio.wav", "wb").write(base64.b64decode(fs["audio.wav"]["content"]))
-          json.dump(json.loads(base64.b64decode(fs["meta.json"]["content"])),
-                    open("meta.json", "w"))
-          print("meta:", open("meta.json").read())
-          PY
       - run: pip install -q faster-whisper
-      - name: Transcribe (faster-whisper with word timestamps)
-        run: python3 - <<'PY'
-          import hashlib, json
-          from faster_whisper import WhisperModel
-          meta = json.load(open("meta.json"))
-          model = meta.get("model", "small")
-          m = WhisperModel(model, device="cpu", compute_type="int8")
-          segs, info = m.transcribe(
-              "audio.wav", word_timestamps=True, language=meta.get("language"))
-          words, segments = [], []
-          for s in segs:
-              segments.append({"text": s.text.strip(),
-                               "start": round(s.start, 2), "end": round(s.end, 2)})
-              for w in (s.words or []):
-                  if w.word.strip():
-                      words.append({"w": w.word.strip(),
-                                    "start": round(w.start, 2), "end": round(w.end, 2)})
-          sha = hashlib.sha256(open("audio.wav", "rb").read()).hexdigest()
-          payload = {"engine": f"github-actions/faster-whisper/{model}",
-                     "language": getattr(info, "language", None),
-                     "duration": round(words[-1]["end"], 2) if words else 0.0,
-                     "words": words, "segments": segments, "sha256": sha}
-          json.dump(payload, open("transcript.json", "w"))
-          print("words:", len(words), "duration:", payload["duration"])
-          PY
-      - name: Upload transcript.json back to the gist
-        run: python3 - <<'PY'
-          import json, os, sys, urllib.request
-          gid = os.environ["GID"]
-          body = {"files": {"transcript.json": {
-              "content": open("transcript.json").read()}}}
-          req = urllib.request.Request(
-              f"https://api.github.com/gists/{gid}",
-              data=json.dumps(body).encode(), method="PATCH",
-              headers={"Authorization": f"token {os.environ['GH_TOKEN']}",
-                       "Accept": "application/vnd.github+json",
-                       "Content-Type": "application/json"})
-          with urllib.request.urlopen(req, timeout=120) as r:
-              print("gist updated:", r.status)
-          PY
+      - name: Transcribe and upload transcript.json
+        run: python3 .github/workflows/transcribe.py

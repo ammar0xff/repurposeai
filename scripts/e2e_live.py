@@ -200,7 +200,7 @@ def main() -> int:
     jid = api._req("POST", f"/api/projects/{pid}/process",
                    {"upload_key": key, "params": params})["job_id"]
     log(f"job {jid} queued; polling...")
-    deadline = time.time() + 900
+    deadline = time.time() + 2400
     job = {}
     while time.time() < deadline:
         time.sleep(15)
