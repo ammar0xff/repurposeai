@@ -12,5 +12,6 @@ See `.env.example` for the full list.
 | `LLM_PROVIDER` | `heuristic` | `openai_compat`, `ollama`, `local` |
 | `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` | empty | Only transcript text is sent |
 | `MAX_UPLOAD_MB` / `MAX_CONCURRENT_JOBS` | 2048 / 2 | Tune to hardware |
+| `WORKER_STALE_TIMEOUT` | 1800 | Seconds before a running job with no heartbeat is reaped as failed |
 | `AUTH_TOKEN` | empty (open) | Set in any shared deployment |
 | `CORS_ORIGINS` | localhost dev ports | Lock down in prod |

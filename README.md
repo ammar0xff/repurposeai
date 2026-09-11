@@ -35,6 +35,29 @@ libass captions → H264 render → FFprobe validation → human review → expo
 
 LLM scores candidates; it never controls the timeline. See `docs/pipeline.md`.
 
+## API quick reference
+
+```bash
+# setup / login (first-time or shared deployment)
+curl -X POST localhost:8000/api/auth/setup  -d '{"username":"you","password":"longpassword1"}'
+TOKEN=$(curl -X POST localhost:8000/api/auth/login  -d '{"username":"you","password":"longpassword1"}' | jq -r .token)
+A="Authorization: Bearer $TOKEN"
+
+# lifecycle: upload → process → poll → export
+PID=$(curl -H "$A" -X POST localhost:8000/api/projects -d '{"title":"X"}' | jq -r .id)
+curl -H "$A" -F "file=@video.mp4" localhost:8000/api/projects/$PID/upload
+JOB=$(curl -H "$A" -X POST localhost:8000/api/projects/$PID/process \
+  -d '{"upload_key":"<from upload>","params":{"stt_provider":"github"}}' | jq -r .job_id)
+curl -H "$A" localhost:8000/api/jobs/$JOB              # poll (or SSE: /jobs/$JOB/events)
+curl -H "$A" localhost:8000/api/projects/$PID/clips    # rendered clips + validation
+
+# retry a failed job; check live queue metrics
+curl -H "$A" -X POST localhost:8000/api/jobs/$JOB/retry
+curl -H "$A" localhost:8000/api/system/metrics
+```
+
+See [`docs/configuration.md`](docs/configuration.md) for all env vars and [`docs/ops.md`](docs/ops.md) for runbook / liveness details.
+
 ## Docs
 
 `docs/`: architecture, development, deployment, configuration, pipeline,

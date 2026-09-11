@@ -68,10 +68,45 @@ ssh homie "curl -fsS http://127.0.0.1:8001/api/system/health"
 5. DB full / disk pressure → `du -sh ~/backups ~/repurposeai/data`; older
    snapshots rotate automatically at 14.
 
+## API operations (health, jobs, metrics)
+
+Auth: Bearer token from `AUTH_TOKEN` or `POST /api/auth/login`; without either the
+API is open (dev mode). All paths under `/api`.
+
+```
+curl -fsS http://127.0.0.1:8001/api/system/health        # liveness (no auth)
+curl -fsS http://127.0.0.1:8001/api/system/readiness     # db/storage/ffmpeg/stt/llm probe
+curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8001/api/system/metrics
+curl -fsS -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:8001/api/jobs/$JID/retry
+```
+
+- `metrics` → queue depth by status, running jobs with heartbeat age, stale running
+  ids (vs `WORKER_STALE_TIMEOUT`), recent failures, disk free, DB size. The ops
+  dashboard.
+- `jobs/{id}/retry` → a terminal failed/cancelled job back to `queued`, resuming
+  from the interrupted stage (done stages are skipped; source key is re-resolved
+  from the project if missing). Returns 409 while a job is still active, 404 unknown.
+
+State machine: `queued → running → ready_for_review | failed | cancelled`.
+
+## Worker liveness (heartbeats)
+
+Every stage transition and long-running loop (`receive`, `resolve_render`)
+touches `ProcessingJob.last_heartbeat`. The dispatcher loop (3s) reaps any
+`running` job whose heartbeat is older than `WORKER_STALE_TIMEOUT` (default 1800s;
+ingest download alone can legitimately run ~1800s, so keep it >= that) and marks it
+`failed` with `JobInterrupted: worker lost contact (no heartbeat >Ns)`. Jobs that
+failed midway never get stuck `running`; retry resumes them. Verify with
+`system/metrics` → `stale_running` should be empty.
+
 ## Database facts
 
-- Production DB: `~/repurposeai/data/rpa.db`, alembic at 0005
-  (0001 initial, 0002 profiles, 0003 … , 0004 campaigns, 0005 reconcile).
+- Production DB: `~/repurposeai/data/rpa.db`, alembic at 0006
+  (0001 initial, 0002 profiles, 0003 … , 0004 campaigns, 0005 reconcile,
+  0006 job heartbeat). `ProcessingJob.last_heartbeat` lives on 0006.
+- SQLite runs in WAL mode (`journal_mode=WAL`, `synchronous=NORMAL`,
+  `busy_timeout=10000`, `foreign_keys=ON`) — set by the app on every connection,
+  not by the `sqlite3` CLI default.
 - `data/repurposeai.db` is a legacy phantom from the old `alembic.ini` path —
   it no longer exists; do not recreate it.
 - `candidate_scores.profile` exists in DB and model (0005 reconciliation).
