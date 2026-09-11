@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { clipVideoUrl, get, post, type ClipItem, type Project } from "../api";
+import { clipVideoUrl, get, post, type ClipItem, type Job, type Project } from "../api";
 import {
   Button,
   Chip,
@@ -33,6 +33,7 @@ function clipRange(c: ClipItem): string {
 export default function Review() {
   const [params] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [pid, setPid] = useState(params.get("project") || "");
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [idx, setIdx] = useState(0);
@@ -66,6 +67,20 @@ export default function Review() {
   }, [pid]);
 
   useEffect(loadProjects, [loadProjects]);
+
+  useEffect(() => {
+    if (!pid) return;
+    void get<Job[]>("/api/jobs")
+      .then(setJobs)
+      .catch(() => {});
+  }, [pid]);
+
+  const busyJob = jobs.find(
+    (j) => j.project_id === pid && (j.status === "queued" || j.status === "running"),
+  );
+  const failedJob = jobs.find(
+    (j) => j.project_id === pid && (j.status === "failed" || j.status === "cancelled"),
+  );
 
   useEffect(() => {
     if (!pid) return;
@@ -193,14 +208,34 @@ export default function Review() {
         <Panel>
           <EmptyState
             icon={<FilmIcon size={26} />}
-            title="No cuts here yet"
-            copy="Put a video through the Studio and the ranked, captioned cuts will show up for review."
+            title={
+              busyJob
+                ? "Still cutting"
+                : failedJob
+                  ? "The cut stopped"
+                  : "No cuts yet"
+            }
+            copy={
+              busyJob
+                ? "The cutter is working its way through this video. Your cuts land here when it is done."
+                : failedJob
+                  ? `It stopped at ${failedJob.current_stage || "?"}. Retry resumes there, nothing is re-ingested.`
+                  : "Run this video through the Studio and the ranked, captioned cuts will show up here for review."
+            }
             action={
-              <Link to="/">
-                <Button variant="primary" size="sm">
-                  Open the studio
-                </Button>
-              </Link>
+              busyJob || failedJob ? (
+                <Link to="/jobs">
+                  <Button variant="ghost" size="sm">
+                    See the job
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/">
+                  <Button variant="primary" size="sm">
+                    Go to the studio
+                  </Button>
+                </Link>
+              )
             }
           />
         </Panel>
