@@ -2,13 +2,13 @@
 
 Works even when the app runs on a machine the runner cannot reach (homie is
 Tailscale-only; GitHub runners can only reach the internet). Rendezvous is a
-private gist: this host pushes the wav + meta as gist files (multi-minute
-audio is split into "part.N" files to dodge GitHub's ~1 MiB inline cap)
-and dispatches a `remote-transcribe` repository event; the workflow (see
-.github/workflows/transcribe.yml) downloads the parts, reassembles the
-audio, runs faster-whisper on a GitHub runner, and uploads a
-transcript.json back to the same gist. This provider polls the gist until
-the transcript appears, then verifies the sha256.
+private gist: this host pushes the wav + meta as gist files (audio is split
+into "part.N" files when needed) and dispatches a `remote-transcribe`
+repository event; the workflow (see .github/workflows/transcribe.yml)
+downloads the parts via their raw_url, reassembles the audio, runs
+faster-whisper on a GitHub runner, and uploads a transcript.json back to
+the same gist. This provider polls the gist until the transcript appears,
+then verifies the sha256.
 
 Requires a classic PAT with `gist` + `repo` scopes (workflow cannot write
 gists with the default GITHUB_TOKEN). Monolingual stdlib -> runs on homie,
@@ -32,15 +32,15 @@ from ..core.errors import MediaError
 from .stt import STTProvider
 
 API = "https://api.github.com"
-# GitHub stops inlining gist file content beyond roughly 1 MiB (rest API
-# returns `truncated: true` with empty content, silently breaking the runner).
-# Multi-minute audio is split across several mailbox files ("part.N"), each
-# kept comfortably under the cap; the runner reassembles them byte-for-byte.
-GIST_INLINE_LIMIT = 1_000_000
-PART_B64 = int(GIST_INLINE_LIMIT * 0.9)  # 900k base64 chars per part -> 675 KB audio
-PART_RAW = PART_B64 * 3 // 4
-MAX_PARTS = 24  # ~16 MiB ceiling; the whole point is short clips, not films
-GIST_BYTES_LIMIT = 8 * 1024 * 1024  # sanity cap for a single audio payload
+# The gist REST API inlines every file's content into one response and
+# truncates the AGGREGATE past ~1 MiB (observed: first file full, all later
+# files empty) - a naive pull-through dumps the transcript silently. The
+# runner therefore fetches audio via each file's `raw_url`, which serves the
+# full stored bytes (per-file cap 10 MiB) regardless of inline truncation.
+# Parts exist to keep individual files comfortably under that 10 MiB cap.
+PART_RAW = 3 * 1024 * 1024  # 3 MiB per part -> ~4 MiB base64 on the wire
+MAX_PARTS = 24  # ~72 MiB ceiling; keeps the runner's wall-clock sane
+GIST_BYTES_LIMIT = 8 * 1024 * 1024  # practical audio cap (runner runtime)
 POLL_SECONDS = 15
 TIMEOUT_SECONDS = 1800
 
