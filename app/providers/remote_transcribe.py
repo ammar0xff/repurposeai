@@ -2,11 +2,13 @@
 
 Works even when the app runs on a machine the runner cannot reach (homie is
 Tailscale-only; GitHub runners can only reach the internet). Rendezvous is a
-private gist: this host pushes the wav + meta as gist files and dispatches a
-`remote-transcribe` repository event; the workflow (see
-.github/workflows/transcribe.yml) downloads the wav, runs faster-whisper on a
-GitHub runner, and uploads a transcript.json back to the same gist. This
-provider polls the gist until the transcript appears, then verifies the sha256.
+private gist: this host pushes the wav + meta as gist files (multi-minute
+audio is split into "part.N" files to dodge GitHub's ~1 MiB inline cap)
+and dispatches a `remote-transcribe` repository event; the workflow (see
+.github/workflows/transcribe.yml) downloads the parts, reassembles the
+audio, runs faster-whisper on a GitHub runner, and uploads a
+transcript.json back to the same gist. This provider polls the gist until
+the transcript appears, then verifies the sha256.
 
 Requires a classic PAT with `gist` + `repo` scopes (workflow cannot write
 gists with the default GITHUB_TOKEN). Monolingual stdlib -> runs on homie,
@@ -32,9 +34,13 @@ from .stt import STTProvider
 API = "https://api.github.com"
 # GitHub stops inlining gist file content beyond roughly 1 MiB (rest API
 # returns `truncated: true` with empty content, silently breaking the runner).
-# Keep every mailbox file comfortably under it.
+# Multi-minute audio is split across several mailbox files ("part.N"), each
+# kept comfortably under the cap; the runner reassembles them byte-for-byte.
 GIST_INLINE_LIMIT = 1_000_000
-GIST_BYTES_LIMIT = 8 * 1024 * 1024  # gist file cap is 10 MiB; stay clear
+PART_B64 = int(GIST_INLINE_LIMIT * 0.9)  # 900k base64 chars per part -> 675 KB audio
+PART_RAW = PART_B64 * 3 // 4
+MAX_PARTS = 24  # ~16 MiB ceiling; the whole point is short clips, not films
+GIST_BYTES_LIMIT = 8 * 1024 * 1024  # sanity cap for a single audio payload
 POLL_SECONDS = 15
 TIMEOUT_SECONDS = 1800
 
@@ -105,28 +111,16 @@ def compact_audio(ffmpeg_path: str, wav_path: str) -> bytes | None:
             pass
 
 
-def dispatch(audio: bytes, meta: dict, token: str, owner: str, repo: str) -> str:
-    """Push audio+meta to a fresh private gist and dispatch a transcribe job."""
-    name = meta.get("audio", "audio.wav")
-    b64 = base64.b64encode(audio).decode()
-    # Enforce the *inlined-content* cap, not the storage cap: over it the API
-    # creates the gist but the runner sees `truncated: true` / empty content.
-    if len(b64) > GIST_INLINE_LIMIT:
-        raise MediaError(
-            f"remote STT: audio is {len(audio)//1024//1024} MiB ({len(b64)//1024//1024} "
-            f"MiB base64), over GitHub's ~1 MiB gist inline limit; use a shorter "
-            "clip or local STT.")
-    if len(audio) > GIST_BYTES_LIMIT:
-        raise MediaError(
-            f"remote STT: audio is {len(audio)//1024//1024} MiB, over the "
-            f"{GIST_BYTES_LIMIT//1024//1024} MiB gist mailbox limit.")
+def dispatch(parts: list[bytes], meta: dict, token: str, owner: str, repo: str) -> str:
+    """Push audio parts + meta to a fresh private gist and dispatch a job."""
+    files: dict[str, dict[str, str]] = {}
+    for i, part in enumerate(parts):
+        files[f"part.{i}"] = {"content": base64.b64encode(part).decode()}
+    files["meta.json"] = {"content": json.dumps(meta)}
     gist = _req("POST", f"{API}/gists", token, {
         "description": "repurposeai remote transcription mailbox",
         "public": False,
-        "files": {
-            name: {"content": b64},
-            "meta.json": {"content": json.dumps(meta)},
-        },
+        "files": files,
     })
     gid = gist["id"]
     _req("POST", f"{API}/repos/{owner}/{repo}/dispatches", token, {
@@ -201,10 +195,19 @@ class RemoteGitHubProvider(STTProvider):
             ogg = compact_audio(self.ffmpeg_path, wav_path)
             if ogg and len(ogg) < len(audio):
                 audio, audio_name = ogg, "audio.ogg"
+        if len(audio) > GIST_BYTES_LIMIT:
+            raise MediaError(
+                f"remote STT: audio is {len(audio)//1024//1024} MiB, over the "
+                f"{GIST_BYTES_LIMIT//1024//1024} MiB gist mailbox cap.")
+        parts = [audio[i:i + PART_RAW] for i in range(0, len(audio), PART_RAW)]
+        if len(parts) > MAX_PARTS:
+            raise MediaError(
+                f"remote STT: audio is {len(audio)//1024//1024} MiB, over the "
+                f"{MAX_PARTS}-part gist mailbox cap.")
         sha = hashlib.sha256(audio).hexdigest()
         meta = {"sha256": sha, "model": model or "small",
-                "language": language, "audio": audio_name}
-        gid = dispatch(audio, meta, self.token, self.owner, self.repo)
+                "language": language, "audio": audio_name, "parts": len(parts)}
+        gid = dispatch(parts, meta, self.token, self.owner, self.repo)
         payload = collect(gid, sha, self.token)
         out: dict[str, Any] = {
             "engine": payload.get("engine", "github-actions/faster-whisper"),

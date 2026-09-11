@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       gist_id:
-        description: gist id holding audio.wav + meta.json
+        description: gist id holding audio parts + meta.json
         required: true
 
 permissions:

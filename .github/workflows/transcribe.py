@@ -4,9 +4,10 @@ Written so the workflow YAML stays simple: this script is invoked by the
 `remote-transcribe` event (or manual workflow_dispatch with a gist_id input)
 after the gist id is resolved into the GID env var. It:
 
-  1. fetches audio.wav + meta.json from the private gist mailbox,
-  2. runs faster-whisper with word timestamps,
-  3. PATCHes transcript.json back to the same gist.
+  1. fetches the audio parts + meta.json from the private gist mailbox,
+  2. reassembles them into the original wav/ogg,
+  3. runs faster-whisper with word timestamps,
+  4. PATCHes transcript.json back to the same gist.
 
 Stdlib only. Runs on the ubuntu-latest runner (actionlint/py3.12).
 """
@@ -58,10 +59,21 @@ def main() -> int:
             "gist meta.json is empty/truncated (clip too long for the mailbox?)")
     meta = json.loads(files["meta.json"]["content"])
     audio_name = meta.get("audio", "audio.wav")
-    if not files.get(audio_name, {}).get("content"):
-        raise RuntimeError(
-            f"gist {audio_name} is empty/truncated (clip too long for the mailbox?)")
-    audio = base64.b64decode(files[audio_name]["content"])
+    nparts = int(meta.get("parts") or 0)
+    if nparts:
+        payload = []
+        for i in range(nparts):
+            name = f"part.{i}"
+            if not files.get(name, {}).get("content"):
+                raise RuntimeError(
+                    f"gist {name} is empty/truncated (mailbox?)")
+            payload.append(base64.b64decode(files[name]["content"]))
+        audio = b"".join(payload)
+    else:
+        if not files.get(audio_name, {}).get("content"):
+            raise RuntimeError(
+                f"gist {audio_name} is empty/truncated (clip too long for the mailbox?)")
+        audio = base64.b64decode(files[audio_name]["content"])
     open(audio_name, "wb").write(audio)
 
     from faster_whisper import WhisperModel  # type: ignore
