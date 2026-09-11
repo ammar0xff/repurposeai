@@ -201,3 +201,21 @@ prompt versions (prompts/ + stored version per result).
   generated_metadata/review_decisions.clip_id, etc.). Homie now: 1 user (the
   admin), 3 pre-existing projects, no e2e rows.
 - Health: homie at a3cae37, deploy-status ok, health OK.
+
+## Remote STT via GitHub Actions (2026-09-11)
+- New OPTION: transcription on a GitHub runner even though homie is
+  Tailscale-only (runner can't reach homie; pull-through rendezvous):
+  app/providers/remote_transcribe.py (stdlib-only) pushes the extracted wav
+  to a private gist + repository-dispatch `remote-transcribe`; workflow
+  .github/workflows/transcribe.yml runs faster-whisper (word timestamps) on
+  ubuntu-latest and uploads transcript.json back to the gist; provider polls,
+  sha256-verifies, deletes the mailbox, and the pipeline continues locally.
+- Settings: STT_PROVIDER=auto|local|github + GITHUB_TOKEN/GITHUB_OWNER/
+  GITHUB_REPO (.env, pydantic). auto = local faster-whisper with remote
+  fallback; github forces remote. Also selectable per job/CLI via
+  params.stt_provider / `rpa transcribe --stt`.
+- Setup: classic PAT (scopes gist+repo) -> ~/repurposeai/.env on homie AND
+  GH repo secret REMOTE_STT_PAT (workflow GITHUB_TOKEN cannot write gists).
+  Traded: wav <=8 MiB mailbox limit.
+- Unit tests tests/unit/test_remote_transcribe.py (pick_stt routing,
+  credential gate, sha verify) - 9 green. CI green on a3cae37-era base.

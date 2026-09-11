@@ -22,6 +22,7 @@ from ..models.entities import (
 from ..pipelines.candidates import eligible, generate
 from ..pipelines.sentences import to_sentences  # noqa: F401 (public step)
 from ..providers.llm import get_llm_provider
+from ..providers.remote_transcribe import RemoteGitHubProvider, pick_stt
 from ..providers.stt import FasterWhisperProvider
 from ..ranking.resolve import resolve
 from ..ranking.service import rank as rank_service
@@ -164,7 +165,8 @@ class Pipeline:
             raise
 
     def transcribe(self, job: ProcessingJob, project: Project, storage_key: str,
-                   model: str = "", force: bool = False) -> dict:
+                   model: str = "", force: bool = False,
+                   stt_provider: str = "") -> dict:
         st = self._begin(job, "transcribe")
         try:
             if not force:
@@ -179,11 +181,22 @@ class Pipeline:
                             self.storage.get_path(storage_key),
                             "-vn", "-ar", "16000", "-ac", "1", wav],
                            check=True, timeout=600)
+            mode = stt_provider or self.s.stt_provider
             prov = FasterWhisperProvider(model or self.s.whisper_model,
                                          self.s.whisper_device, self.s.whisper_compute_type)
-            if not prov.available():
+            remote = RemoteGitHubProvider(self.s.github_token, self.s.github_owner,
+                                          self.s.github_repo)
+            choice = pick_stt(mode, prov.available(), remote.available())
+            if choice == "local":
+                tr = prov.transcribe(wav, model or self.s.whisper_model)
+            elif choice == "remote":
+                tr = remote.transcribe(wav, model or self.s.whisper_model)
+            else:
+                if mode == "github":
+                    raise MediaError(
+                        "Remote (GitHub Actions) STT unavailable: set "
+                        "GITHUB_TOKEN/GITHUB_OWNER/GITHUB_REPO.")
                 raise MediaError("STT provider unavailable (faster-whisper not installed).")
-            tr = prov.transcribe(wav, model or self.s.whisper_model)
             import os
             os.unlink(wav)
             row = Transcript(id=new_id(), project_id=project.id, engine=tr["engine"],
@@ -358,7 +371,8 @@ class Pipeline:
             if "analyze" not in done_stages:
                 self.analyze(job, project, src_key)
             if "transcribe" not in done_stages:
-                self.transcribe(job, project, src_key, params.get("whisper_model", ""), force)
+                self.transcribe(job, project, src_key, params.get("whisper_model", ""), force,
+                                params.get("stt_provider", ""))
             if "segment" not in done_stages:
                 self.segment(job, project)
             # rank+resolve+render

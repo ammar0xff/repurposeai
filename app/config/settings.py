@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 
+    stt_provider: str = "auto"  # auto|local|github (remote via GitHub Actions)
+    github_token: str = ""
+    github_owner: str = ""
+    github_repo: str = ""
+
     llm_provider: str = "heuristic"
     llm_base_url: str = ""
     llm_model: str = "gpt-oss-20b"
@@ -44,6 +49,13 @@ class Settings(BaseSettings):
     def _provider(cls, v: str) -> str:
         if v not in ("heuristic", "openai_compat", "ollama", "local"):
             raise ValueError("LLM_PROVIDER must be heuristic|openai_compat|ollama|local")
+        return v
+
+    @field_validator("stt_provider")
+    @classmethod
+    def _stt(cls, v: str) -> str:
+        if v not in ("auto", "local", "github"):
+            raise ValueError("STT_PROVIDER must be auto|local|github")
         return v
 
     def cors_list(self) -> list[str]:

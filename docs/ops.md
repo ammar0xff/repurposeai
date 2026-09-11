@@ -76,10 +76,30 @@ ssh homie "curl -fsS http://127.0.0.1:8001/api/system/health"
   it no longer exists; do not recreate it.
 - `candidate_scores.profile` exists in DB and model (0005 reconciliation).
 
+## Remote STT via GitHub Actions (optional)
+
+Homie cannot run faster-whisper (SIGILL/oomd), so transcription can be farmed
+out to a GitHub runner even though homie is Tailscale-only:
+
+1. Create a classic PAT with `gist` + `repo` scopes.
+2. Put it on homie: `~/repurposeai/.env` →
+   `GITHUB_TOKEN=…`, `GITHUB_OWNER=ammar0xff`, `GITHUB_REPO=repurposeai`
+   (`STT_PROVIDER=auto` enables remote fallback when local STT is absent;
+   `github` forces remote only).
+3. Mirror the same PAT as the GH repo secret `REMOTE_STT_PAT`
+   (`gh secret set REMOTE_STT_PAT` — the workflow token cannot write gists).
+4. Trigger remotely: run a job with `params.stt_provider=github`, or
+   `rpa transcribe <project> --stt auto|github`.
+
+Mechanics: provider pushes the extracted 16k wav to a private gist, dispatches
+`remote-transcribe`, polls for `transcript.json`, sha256-verifies it, deletes
+the mailbox, then the pipeline resumes locally. Limit: wav <= 8 MiB.
+
 ## Deploy key / auth facts
 
 - Homie pulls via read-only GitHub deploy key `~/.ssh/id_repurposeai_cd`
   (GitHub id: 162924505); origin = `git@github.com:ammar0xff/repurposeai.git`.
-- No `.env` on homie; runtime config is passed as systemd `Environment=`.
+- Runtime config = systemd `Environment=` (DATABASE_URL, PORT); a `~/.env` may
+  add optional STT env (unit env still wins via pydantic precedence).
 - Tailscale-only: GitHub-hosted runners cannot reach homie; do not reintroduce
   GitHub-action SSH deploys.

@@ -78,7 +78,8 @@ def cmd_transcribe(a):
     from .models.entities import MediaAsset
     src = db.query(MediaAsset).filter_by(project_id=p.id, kind="source").first()
     j = _job_for(db, pipe, p.id, {})
-    tr = pipe.transcribe(j, p, src.storage_key, a.model or s.whisper_model, a.force)
+    tr = pipe.transcribe(j, p, src.storage_key, a.model or s.whisper_model, a.force,
+                         a.stt)
     _fmt({"engine": tr["engine"], "words": len(tr["words"]), "duration": tr["duration"]}, a.json)
 
 
@@ -221,6 +222,8 @@ def main(argv=None):
     p = sub.add_parser("ingest"); p.add_argument("project"); p.add_argument("source")
     p = sub.add_parser("analyze"); p.add_argument("project")
     p = sub.add_parser("transcribe"); p.add_argument("project")
+    p.add_argument("--stt", choices=["auto", "local", "github"], default="",
+                   help="auto|local|github (remote via GitHub Actions)")
     p.add_argument("--model", default=""); p.add_argument("--force", action="store_true")
     p = sub.add_parser("candidates"); p.add_argument("project")
     p = sub.add_parser("rank"); p.add_argument("project"); p.add_argument("--n", type=int, default=5)
