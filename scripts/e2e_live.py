@@ -19,8 +19,8 @@ import argparse
 import datetime as dt
 import json
 import os
-import sqlite3
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -66,8 +66,8 @@ def make_media(media: str) -> None:
         "-f", "lavfi", "-i", "testsrc2=size=640x360:duration=10:rate=20",
         "-f", "lavfi", "-i", "sine=frequency=440:duration=30",
         "-filter_complex",
-        "[0:v]hue=h=0[v0];[1:v]hue=h=45[v1];[2:v]hue=h=90[v2];"
-        "[v0][v1][v2]concat=n=3:v=1:a=0[v]",
+        ("[0:v]hue=h=0[v0];[1:v]hue=h=45[v1];[2:v]hue=h=90[v2];"
+         "[v0][v1][v2]concat=n=3:v=1:a=0[v]"),
         "-map", "[v]", "-map", "3:a",
         "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
         "-movflags", "+faststart", "-shortest", media,
@@ -165,7 +165,7 @@ def main() -> int:
     log(f"authenticated as {username}")
 
     pid = api._req("POST", "/api/projects",
-                   {"title": f"{CFG['title_prefix']}-{dt.datetime.now().strftime('%H%M%S')}",
+                   {"title": f"{CFG['title_prefix']}-{dt.datetime.now(dt.UTC).strftime('%H%M%S')}",
                     "config": CFG["config"]})["id"]
     key = api._req("POST", f"/api/projects/{pid}/upload",
                    files=args.media)["storage_key"]
