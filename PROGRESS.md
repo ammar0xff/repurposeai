@@ -154,6 +154,10 @@ prompt versions (prompts/ + stored version per result).
   homie panel stopped & removed, local copies deleted.
 - Verified: ruff 0, mypy 0, 26 pytest green, UI 200, API authed flow live.
 
+- Schema drift resolved 2026-09-11: homie DB (create_all-born) was missing
+  candidate_scores.profile (migration 0002). Reconciliation migration
+  migrations/versions/0005 adds it; homie migrated to 0005, model/migration/DB
+  aligned. init_db now stamps head, so fresh create_all DBs match alembic.
 ## Continuous deployment (homie)
 
 - GitHub runners can't reach homie (Tailscale-only), so CD is PULL-based:
