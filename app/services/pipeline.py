@@ -171,6 +171,13 @@ class Pipeline:
             self._fail(job, st, e)
             raise
 
+    def _stt_override(self) -> str:
+        from ..models.entities import SystemSetting
+        row = self.db.query(SystemSetting).filter_by(key="stt_provider").first()
+        if row and row.value in ("auto", "local", "github"):
+            return row.value
+        return ""
+
     def transcribe(self, job: ProcessingJob, project: Project, storage_key: str,
                    model: str = "", force: bool = False,
                    stt_provider: str = "") -> dict:
@@ -188,7 +195,7 @@ class Pipeline:
                             self.storage.get_path(storage_key),
                             "-vn", "-ar", "16000", "-ac", "1", wav],
                            check=True, timeout=600)
-            mode = stt_provider or self.s.stt_provider
+            mode = stt_provider or self._stt_override() or self.s.stt_provider
             prov = FasterWhisperProvider(model or self.s.whisper_model,
                                          self.s.whisper_device, self.s.whisper_compute_type)
             remote = RemoteGitHubProvider(self.s.github_token, self.s.github_owner,

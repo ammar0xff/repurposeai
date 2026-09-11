@@ -1,8 +1,9 @@
-"""System: health, readiness, providers, metrics. Real checks, no invented metrics."""
+"""System: health, readiness, providers, settings, metrics. Real checks."""
 import os
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func
 
 from ..config.settings import get_settings
@@ -12,6 +13,36 @@ from ..workers.runner import _is_stale, _utc_naive
 from .deps import current_user, db_session, storage_dep
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+
+class SettingsUpdate(BaseModel):
+    stt_provider: str | None = None
+
+    @field_validator("stt_provider")
+    @classmethod
+    def _stt(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("auto", "local", "github"):
+            raise ValueError("stt_provider must be auto|local|github")
+        return v
+
+
+def _stt_override(db) -> str:
+    from ..models.entities import SystemSetting
+    row = db.query(SystemSetting).filter_by(key="stt_provider").first()
+    return row.value if row and row.value in ("auto", "local", "github") else ""
+
+
+def _settings_payload(db) -> dict:
+    s = get_settings()
+    ov = _stt_override(db)
+    return {
+        "stt_provider": ov or s.stt_provider,
+        "stt_override": ov,
+        "whisper": {"model": s.whisper_model, "device": s.whisper_device,
+                    "compute_type": s.whisper_compute_type},
+        "github": {"token_set": bool(s.github_token),
+                   "owner": s.github_owner, "repo": s.github_repo},
+    }
 
 
 def _check(name: str, fn):
@@ -74,14 +105,44 @@ def readiness(st=Depends(storage_dep)):
 @router.get("/providers")
 def providers():
     from ..providers.llm import get_llm_provider
+    from ..providers.remote_transcribe import RemoteGitHubProvider
     from ..providers.stt import FasterWhisperProvider
     s = get_settings()
     llm = get_llm_provider(s.llm_provider)
+    local = FasterWhisperProvider(s.whisper_model)
+    remote = RemoteGitHubProvider(s.github_token, s.github_owner, s.github_repo)
+    l_ok = local.available()
+    r_ok = remote.available()
     return {"llm": {"kind": s.llm_provider, "model": s.llm_model,
                     "available": llm.available() if s.llm_provider != "heuristic" else True,
                     "note": "heuristic fallback" if s.llm_provider == "heuristic" else ""},
             "stt": {"kind": "faster-whisper", "model": s.whisper_model,
-                    "available": FasterWhisperProvider(s.whisper_model).available()}}
+                    "available": l_ok,
+                    "engines": {"auto": l_ok or r_ok, "local": l_ok, "github": r_ok},
+                    "local_mode": ("unavailable here: faster-whisper libs crash on this CPU"
+                                   if not l_ok else "ready"),
+                    "github_mode": ("ready: GitHub Actions runner via private gist"
+                                    if r_ok else
+                                    "not configured: set GITHUB_TOKEN / GITHUB_OWNER / GITHUB_REPO")}}
+
+
+@router.get("/settings")
+def get_settings_api(db=Depends(db_session)):
+    return _settings_payload(db)
+
+
+@router.put("/settings")
+def put_settings_api(body: SettingsUpdate, db=Depends(db_session),
+                     _u=Depends(current_user)):
+    from ..models.entities import SystemSetting
+    if body.stt_provider is not None:
+        row = db.query(SystemSetting).filter_by(key="stt_provider").first()
+        if row is None:
+            db.add(SystemSetting(key="stt_provider", value=body.stt_provider))
+        else:
+            row.value = body.stt_provider
+        db.commit()
+    return _settings_payload(db)
 
 
 @router.get("/metrics")

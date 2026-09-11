@@ -61,7 +61,25 @@ def test_system_endpoints():
     assert client.get("/api/system/health").json()["status"] == "ok"
     r = client.get("/api/system/readiness")
     assert "checks" in r.json()
-    assert "llm" in client.get("/api/system/providers").json()
+    prov = client.get("/api/system/providers").json()
+    assert "llm" in prov
+    eng = prov["stt"]["engines"]
+    assert set(eng) == {"auto", "local", "github"}
+    assert all(isinstance(v, bool) for v in eng.values())
+
+
+def test_system_settings_roundtrip():
+    g = client.get("/api/system/settings")
+    assert g.status_code == 200, g.text
+    assert g.json()["stt_provider"] in ("auto", "local", "github")
+    r = client.put("/api/system/settings", json={"stt_provider": "github"})
+    assert r.status_code == 200, r.text
+    assert r.json()["stt_provider"] == "github"
+    assert r.json()["stt_override"] == "github"
+    assert client.get("/api/system/settings").json()["stt_provider"] == "github"
+    bad = client.put("/api/system/settings", json={"stt_provider": "nope"})
+    assert bad.status_code == 422
+    client.put("/api/system/settings", json={"stt_provider": "auto"})
 
 
 def test_openapi_present():
