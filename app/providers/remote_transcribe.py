@@ -17,6 +17,7 @@ Output shape matches the STTProvider contract:
 """
 import base64
 import hashlib
+import http.client
 import json
 import time
 import urllib.error
@@ -43,23 +44,35 @@ def pick_stt(mode: str, local_ok: bool, remote_ok: bool) -> str:
     return "remote" if remote_ok else "none"
 
 
-def _req(method: str, url: str, token: str, body=None) -> dict:
+def _req(method: str, url: str, token: str, body=None,
+         tries: int = 4, timeout: int = 120) -> dict:
+    """GitHub API request with retry+backoff for flaky legs (truncations,
+    timeouts, 5xx). 4xx are surfaced immediately."""
     token = token.strip()
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(
-        url, data=data, method=method,
-        headers={
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "repurposeai-remote-stt",
-            **({"Content-Type": "application/json"} if data else {}),
-        })
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read() or b"{}")
-    except urllib.error.HTTPError as e:
-        raise MediaError(f"github api {method} {url} -> {e.code}",
-                         details=e.read()[:500].decode("utf-8", "replace")) from e
+    last = None
+    for attempt in range(tries):
+        req = urllib.request.Request(
+            url, data=data, method=method,
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "repurposeai-remote-stt",
+                **({"Content-Type": "application/json"} if data else {}),
+            })
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == tries - 1:
+                raise MediaError(f"github api {method} {url} -> {e.code}",
+                                 details=e.read()[:500].decode("utf-8", "replace")) from e
+            last = f"{e.code}"
+        except (http.client.IncompleteRead, urllib.error.URLError,
+                TimeoutError, json.JSONDecodeError) as e:
+            last = e
+        time.sleep(1 + attempt * 2)
+    raise MediaError(f"github api {method} {url} failed: {last}")
 
 
 def dispatch(audio: bytes, meta: dict, token: str, owner: str, repo: str) -> str:

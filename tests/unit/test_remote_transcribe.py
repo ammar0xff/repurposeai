@@ -1,9 +1,15 @@
 """Unit tests for the GitHub-Actions remote STT provider (stdlib-only)."""
+import http.client
+import io
+import json
+import unittest.mock as mock
+
 import pytest
 
 from app.core.errors import MediaError
 from app.providers.remote_transcribe import (
     RemoteGitHubProvider,
+    _req,
     pick_stt,
     verify_result,
 )
@@ -54,3 +60,41 @@ def test_transcribe_without_creds_raises_clear_error():
     p = RemoteGitHubProvider("", "", "")
     with pytest.raises(MediaError, match="GITHUB_TOKEN"):
         p.transcribe("/tmp/whatever.wav")
+
+
+class _Ctx:
+    def __init__(self, payload):
+        self.data = json.dumps(payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def read(self, *a):
+        return self.data
+
+
+def _resp(payload: dict):
+    return _Ctx(payload)
+
+
+def test_req_retries_on_incomplete_read_and_result_ok():
+    with mock.patch("app.providers.remote_transcribe.time.sleep"), \
+            mock.patch("app.providers.remote_transcribe.urllib.request.urlopen") as uo:
+        uo.side_effect = [
+            http.client.IncompleteRead(b"123", 100),
+            _resp({"ok": True}),
+        ]
+        assert _req("GET", "https://api.github.com/x", "ghp_ tkn") == {"ok": True}
+        assert uo.call_count == 2
+
+
+def test_req_gives_up_after_tries_and_raises_mediarerror():
+    with mock.patch("app.providers.remote_transcribe.time.sleep"), \
+            mock.patch("app.providers.remote_transcribe.urllib.request.urlopen") as uo:
+        uo.side_effect = http.client.IncompleteRead(b"", 100)
+        with pytest.raises(MediaError, match="(?i)incomplete"):
+            _req("GET", "https://api.github.com/x", "ghp_ tkn", tries=3)
+        assert uo.call_count == 3

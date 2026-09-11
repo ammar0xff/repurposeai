@@ -12,9 +12,12 @@ Stdlib only. Runs on the ubuntu-latest runner (actionlint/py3.12).
 """
 import base64
 import hashlib
+import http.client
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 
 API = "https://api.github.com"
@@ -22,17 +25,29 @@ GID = os.environ["GID"]
 TOKEN = os.environ["GH_TOKEN"].strip()
 
 
-def _req(method, url):
-    req = urllib.request.Request(
-        url,
-        method=method,
-        headers={
-            "Authorization": f"token {TOKEN}",
-            "Accept": "application/vnd.github+json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read().decode())
+def _req(method, url, tries=4, timeout=120):
+    last = None
+    for attempt in range(tries):
+        req = urllib.request.Request(
+            url,
+            method=method,
+            headers={
+                "Authorization": f"token {TOKEN}",
+                "Accept": "application/vnd.github+json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == tries - 1:
+                raise
+            last = e.code
+        except (http.client.IncompleteRead, urllib.error.URLError,
+                TimeoutError, json.JSONDecodeError) as e:
+            last = e
+        time.sleep(1 + attempt * 2)
+    raise RuntimeError(f"gist request failed after {tries} tries: {last}")
 
 
 def main() -> int:
