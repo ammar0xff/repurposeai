@@ -76,7 +76,7 @@ def _req(method: str, url: str, token: str, body=None,
             last = f"{e.code}"
         except (http.client.IncompleteRead, urllib.error.URLError,
                 TimeoutError, json.JSONDecodeError) as e:
-            last = e
+            last = f"{e.__class__.__name__}: {e}"
         time.sleep(1 + attempt * 2)
     raise MediaError(f"github api {method} {url} failed: {last}")
 
