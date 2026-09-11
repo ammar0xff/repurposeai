@@ -374,7 +374,9 @@ class Pipeline:
                 job.params = params
                 self.db.commit()
             else:
-                src_key = params.get("storage_key", "")
+                # Resume-safe: params may predate the storage_key field; fall back
+                # to the project's registered source asset.
+                src_key = params.get("storage_key") or self._src_key_for(project)
             if self._cancelled(job):
                 return {"job": job.id, "cancelled": True}
             if "analyze" not in done_stages:
@@ -431,6 +433,14 @@ class Pipeline:
         if not a:
             raise MediaError("No source asset. Ingest first.")
         return self.storage.get_path(a.storage_key)
+
+    def _src_key_for(self, project: Project) -> str:
+        a = self.db.query(MediaAsset).filter_by(
+            project_id=project.id, kind="source").order_by(
+                MediaAsset.created_at.desc()).first()
+        if not a:
+            raise MediaError("No source asset. Ingest first.")
+        return a.storage_key
 
 
 def _safe_name(name: str) -> str:
