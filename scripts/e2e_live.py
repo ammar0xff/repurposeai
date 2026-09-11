@@ -127,9 +127,16 @@ def cleanup(db: sqlite3.Connection, pid: str, username: str,
         log(f"keeping artifacts (project={pid}, user={username})")
         return
     cur = db.cursor()
-    for t in ("pipeline_stages", "review_decisions", "generated_metadata",
-              "clips", "exports", "candidate_scores", "candidates",
-              "scenes", "transcripts", "processing_jobs", "media_assets"):
+    cur.execute("delete from pipeline_stages where job_id in "
+                "(select id from processing_jobs where project_id=?)", (pid,))
+    cur.execute("delete from candidate_scores where candidate_id in "
+                "(select id from candidates where project_id=?)", (pid,))
+    cur.execute("delete from generated_metadata where clip_id in "
+                "(select id from clips where project_id=?)", (pid,))
+    cur.execute("delete from review_decisions where clip_id in "
+                "(select id from clips where project_id=?)", (pid,))
+    for t in ("clips", "candidates", "scenes", "transcripts", "exports",
+              "media_assets", "processing_jobs"):
         cur.execute(f"delete from {t} where project_id=?", (pid,))
     cur.execute("delete from projects where id=?", (pid,))
     cur.execute("delete from api_tokens where user_id in "
