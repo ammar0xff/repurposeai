@@ -1,6 +1,7 @@
 """Pipeline service: stage-by-stage orchestration over pure functions.
 Callable from API, CLI, worker, MCP. Idempotent per stage (skip when done
 unless force=True). Persist checkpoints after every stage (resumability)."""
+from pathlib import Path
 
 from ..core.errors import MediaError
 from ..core.ids import new_id
@@ -295,6 +296,10 @@ class Pipeline:
                 rdr.render(self._src_path(project), rs, re, words, tmp,
                                   profile, reframe, style, cfg.get("credit", ""))
                 self.storage.put_file(key, tmp)
+                # captions validation needs the .ass sidecar beside the clip
+                ass_tmp = Path(tmp).with_suffix(".ass")
+                if ass_tmp.exists():
+                    self.storage.put_file(f"{Path(key).with_suffix('.ass')}", ass_tmp)
                 vrep = validate_clip(self.storage.get_path(key), {
                     "width": PROFILES[profile]["w"], "height": PROFILES[profile]["h"],
                     "min_duration": cfg.get("min_duration", 15),
