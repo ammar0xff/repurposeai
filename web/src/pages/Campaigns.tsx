@@ -1,38 +1,118 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Campaign, get, post } from "../api";
+import {
+  Button,
+  Chip,
+  EmptyState,
+  Field,
+  Input,
+  Notice,
+  PageHead,
+  Panel,
+} from "../components/ui";
+import { CampaignIcon } from "../icons";
+import type { NoticeTone } from "../components/ui";
 
 export default function Campaigns() {
   const [list, setList] = useState<Campaign[]>([]);
   const [name, setName] = useState("");
-  const load = () => { get<{ items: Campaign[] }>("/api/campaigns").then((r) => setList(r.items)).catch(() => {}); };
-  useEffect(() => { load(); }, []);
+  const [note, setNote] = useState<{ tone: NoticeTone; msg: string } | null>(null);
+
+  const load = () =>
+    void get<{ items: Campaign[] }>("/api/campaigns")
+      .then((r) => setList(r.items))
+      .catch(() => {});
+
+  useEffect(load, []);
+
   const create = async () => {
     if (!name.trim()) return;
-    await post("/api/campaigns", { name, rules: {}, verified: false });
-    setName("");
-    load();
+    try {
+      await post("/api/campaigns", { name, rules: {}, verified: false });
+      setName("");
+      load();
+    } catch (e) {
+      setNote({
+        tone: "bad",
+        msg: e instanceof Error ? e.message : "Could not create campaign.",
+      });
+    }
   };
+
   return (
     <div>
-      <h1 className="mb-4 text-xl font-bold">Campaigns</h1>
-      <div className="mb-4 flex gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New campaign name"
-          className="w-full rounded-lg border border-slate-700 bg-[#0a0d12] px-3 py-2 text-sm" />
-        <button onClick={() => void create()} className="rounded-lg bg-[#2e5aa8] px-4 py-2 text-sm font-semibold text-white">Create</button>
-      </div>
-      {list.map((c) => (
-        <div key={c.id} className="mb-2 flex items-center gap-2 rounded-xl border border-slate-800 bg-[#11151d] p-3 text-sm">
-          <span className="font-medium">{c.name}</span>
-          <span className="text-slate-500">v{c.version}</span>
-          {c.ready
-            ? <span className="rounded-full border border-emerald-800 px-2 py-0.5 text-xs text-emerald-300">READY</span>
-            : <span className="rounded-full border border-red-800 px-2 py-0.5 text-xs text-red-300">BLOCKED {c.blockers.length}</span>}
-          <span className="flex-1" />
-          <Link className="text-[#5f8dd3]" to={`/campaign/${c.id}`}>Open</Link>
+      <PageHead
+        kicker="Policy"
+        title="Campaigns"
+        right={
+          list.length ? (
+            <span className="mono text-xs text-faint">{list.length} tracked</span>
+          ) : null
+        }
+      />
+
+      {note ? (
+        <div className="mb-4">
+          <Notice tone={note.tone} onClose={() => setNote(null)}>
+            {note.msg}
+          </Notice>
         </div>
-      ))}
-      {!list.length && <div className="text-sm text-slate-400">No campaigns. Create one for payout-gated clipping.</div>}
+      ) : null}
+
+      <Panel className="mb-5">
+        <Field label="New campaign">
+          <div className="flex gap-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void create()}
+              placeholder="e.g. Q3 launch, payout 0.35/1k"
+            />
+            <Button variant="primary" onClick={() => void create()}>
+              Create
+            </Button>
+          </div>
+        </Field>
+      </Panel>
+
+      {list.length ? (
+        <div className="space-y-3">
+          {list.map((c) => (
+            <div key={c.id} className="panel flex items-center gap-3 p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line text-faint">
+                <CampaignIcon size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-ink">{c.name}</div>
+                <div className="mono mt-0.5 text-[11px] text-faint">
+                  v{c.version}
+                  {c.p0_missing?.length ? ` · ${c.p0_missing.length} p0 fields missing` : ""}
+                </div>
+              </div>
+              <Chip tone={c.ready ? "ok" : "bad"}>
+                {c.ready ? "ready" : `blocked ${c.blockers?.length ?? 0}`}
+              </Chip>
+              <Link to={`/campaign/${c.id}`}>
+                <Button variant="ghost" size="sm">
+                  Open
+                </Button>
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Panel>
+          <EmptyState
+            icon={<CampaignIcon size={26} />}
+            title="No campaigns yet"
+            copy="A campaign is a paid-content brief: rate per 1k, budget, duration cap and credit rules. Generate respects it; posting stays manual."
+            action={
+              <span className="text-xs text-faint">Create one to gate production clips.</span>
+            }
+          />
+        </Panel>
+      )}
     </div>
   );
 }
