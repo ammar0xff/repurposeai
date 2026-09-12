@@ -68,7 +68,13 @@ def rerender(cid: str, body: RerenderIn, db=Depends(db_session),
                       cfg.get("credit", ""))
     key = project_key(c.project_id, "clips", f"{c.id}-v{int(__import__('time').time())}.mp4")
     st = pipe.storage.put_file(key, tmp)
+    import shutil
+
+    from pathlib import Path as _Path
+    ass_tmp = _Path(tmp).with_suffix(".ass")
+    shutil.copyfile(ass_tmp, _Path(pipe.storage.get_path(st)).with_suffix(".ass"))
     os.unlink(tmp)
+    os.unlink(ass_tmp)
     c.start, c.end, c.storage_key = start, end, st
     c.status = "rendered"
     c.validation = validate_clip(pipe.storage.get_path(st), {
