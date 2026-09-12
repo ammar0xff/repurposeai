@@ -90,7 +90,7 @@ def montage_filter(durations: list[float], transitions: list[str | None],
         vid_in, aud_in, total = vout, aout, total + durations[i] - td
     built = ";".join(graph)
     if master_audio:
-        built += f";[{aud_in}]alimiter=limit={LIMIT_GAIN}[amaster]"
+        built += f";{aud_in}alimiter=limit={LIMIT_GAIN}[amaster]"
         return built, vid_in, "[amaster]", total
     return built, vid_in, aud_in, total
 

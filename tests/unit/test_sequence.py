@@ -84,7 +84,7 @@ def test_master_audio_adds_loudnorm_and_limiter():
     f, v, a, total = montage_filter([5.0, 5.0], [None, "crossfade"],
                                     [0.0, 0.8], master_audio=True)
     assert "loudnorm=I=-14:TP=-1.5:LRA=11" in f
-    assert "alimiter=limit=0.891" in f
+    assert ";[y1]alimiter=limit=0.891[amaster]" in f
     assert a == "[amaster]" and v == "[x1]"
     assert total == pytest.approx(9.2)
 
