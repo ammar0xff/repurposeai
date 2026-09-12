@@ -67,9 +67,9 @@ def montage_filter(durations: list[float], transitions: list[str | None],
             name, td = "fade", MIN_TRANSITION
         offset = max(total - td, 0.0)
         vout, aout = f"[x{i}]", f"[y{i}]"
-        graph.append(f"{vid_in}[{i}:v]xfade=transition={name}:duration={td:.4f}:"
-                     f"offset={offset:.4f}:fps={fps}{vout}")
-        graph.append(f"{aud_in}[{i}:a]acrossfade=d={td:.4f}:c1=tri:c2=tri{aout}")
+        graph.append(f"{vid_in}[v{i}]xfade=transition={name}:duration={td:.4f}:"
+                     f"offset={offset:.4f}{vout}")
+        graph.append(f"{aud_in}[a{i}]acrossfade=d={td:.4f}:c1=tri:c2=tri{aout}")
         vid_in, aud_in, total = vout, aout, total + durations[i] - td
     return ";".join(graph), vid_in, aud_in, total
 
