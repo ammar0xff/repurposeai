@@ -11,12 +11,14 @@ import {
   PlayIcon,
   ReviewIcon,
   SettingsIcon,
+  StitchIcon,
   UploadIcon,
 } from "./icons";
 import CampaignDetail from "./pages/CampaignDetail";
 import Campaigns from "./pages/Campaigns";
 import Jobs from "./pages/Jobs";
 import Login from "./pages/Login";
+import Montage from "./pages/Montage";
 import Projects from "./pages/Projects";
 import Review from "./pages/Review";
 import Settings from "./pages/Settings";
@@ -35,6 +37,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "Studio", icon: UploadIcon },
       { to: "/review", label: "Review", icon: ReviewIcon },
+      { to: "/montage", label: "Montage", icon: StitchIcon },
       { to: "/jobs", label: "Jobs", icon: ActivityIcon },
     ],
   },
@@ -180,6 +183,7 @@ function Shell({
             <Route path="/projects" element={<Projects />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/review" element={<Review />} />
+            <Route path="/montage" element={<Montage />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaign/:id" element={<CampaignDetail />} />
             <Route path="/exports" element={<Navigate to="/projects" replace />} />

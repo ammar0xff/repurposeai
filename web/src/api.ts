@@ -150,3 +150,64 @@ export interface Metrics {
   disk_free_gb: number;
   db_size_bytes: number;
 }
+
+export interface SequenceItem {
+  clip_id: string;
+  start?: number | null;
+  end?: number | null;
+  reframe?: string | null;
+  caption_style?: string | null;
+  credit?: string | null;
+  transition?: string | null;
+  transition_duration?: number | null;
+  clip?: { start: number; end: number; status: string; render_profile: string };
+}
+
+export interface SequenceValidation {
+  status?: string;
+  checks?: Record<string, boolean>;
+}
+
+export interface Sequence {
+  id: string;
+  name: string;
+  items: SequenceItem[];
+  rendered_key: string;
+  rendered_validation: SequenceValidation;
+}
+
+export interface SequenceRender {
+  id: string;
+  storage_key: string;
+  validation: SequenceValidation;
+  duration: number;
+  download_url: string;
+}
+
+export function getSequence(pid: string) {
+  return get<Sequence>(`/api/projects/${pid}/sequence`);
+}
+
+export function putSequence(pid: string, body: { name?: string; items?: SequenceItem[] }) {
+  return put<Sequence>(`/api/projects/${pid}/sequence`, body);
+}
+
+export function autofillSequence(pid: string) {
+  return post<Sequence>(`/api/projects/${pid}/sequence/autofill`);
+}
+
+export function renderSequence(
+  pid: string,
+  body: { transition?: string | null; transition_duration?: number | null },
+) {
+  return post<SequenceRender>(`/api/projects/${pid}/sequence/render`, body);
+}
+
+export async function sequenceDownloadUrl(pid: string): Promise<string> {
+  const r = await fetch(`/api/projects/${pid}/sequence/download`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(`download ${r.status}`);
+  const blob = await r.blob();
+  return URL.createObjectURL(blob);
+}

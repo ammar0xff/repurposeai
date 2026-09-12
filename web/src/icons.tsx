@@ -172,3 +172,11 @@ export const ZapIcon = ({ size, className, strokeWidth }: IconProps) => (
     <path d="M13 3L5 13h6l-1 8l8-10h-6z" />
   </I>
 );
+
+export const StitchIcon = ({ size, className, strokeWidth }: IconProps) => (
+  <I size={size} className={className} strokeWidth={strokeWidth}>
+    <rect x="3" y="5" width="8" height="14" rx="1.5" />
+    <rect x="13" y="5" width="8" height="14" rx="1.5" />
+    <path d="M13 9.5L8 14" />
+  </I>
+);
