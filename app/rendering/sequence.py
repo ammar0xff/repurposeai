@@ -39,7 +39,6 @@ def xfade_name(transition: str | None) -> str | None:
     return TRANSITIONS.get(t, t)
 
 
-LOUDNORM = "loudnorm=I=-14:TP=-1.5:LRA=11"
 LIMIT_GAIN = 0.891  # ~ -1 dBFS ceiling so xfade overlaps never clip
 
 
@@ -64,8 +63,6 @@ def montage_filter(durations: list[float], transitions: list[str | None],
         audio = (f"atrim=duration={durations[i]:.4f},"
                  f"asetpts=PTS-STARTPTS,"
                  f"aformat=sample_fmts=fltp:channel_layouts=stereo")
-        if master_audio:
-            audio += f",{LOUDNORM}"
         graph.append(f"[{i}:v]trim=duration={durations[i]:.4f},"
                      f"setpts=PTS-STARTPTS,fps={fps},format=yuv420p[v{i}]")
         graph.append(f"[{i}:a]{audio}[a{i}]")
