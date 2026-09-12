@@ -98,6 +98,7 @@ def render_sequence(inputs: list[str], transitions: list[str | None],
         cmd += ["-i", p]
     cmd += ["-filter_complex", fchain, "-map", vlabel, "-map", alabel,
             "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+            "-threads", "2", "-x264-params", "rc-lookahead=10",
             "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out]
     try:
         subprocess.run(cmd, check=True, timeout=3600)
