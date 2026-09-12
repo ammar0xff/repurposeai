@@ -27,10 +27,11 @@ class Renderer:
         t0 = time.time()
         spec = PROFILES.get(profile, PROFILES["shorts_1080x1920"])
         anchor = get_strategy(reframe).anchor(source, start, end, 0, 0)
+        dur = max(end - start, 0.01)
         ass = Path(out).with_suffix(".ass")
         ass.write_text(to_ass(words, start, end, caption_style),
                        encoding="utf-8")
-        vf = crop_filter(0, 0, spec["w"], spec["h"], anchor)
+        vf = crop_filter(0, 0, spec["w"], spec["h"], anchor, dur)
         vf += f",subtitles='{ass}':force_style='FontSize=64'"
         if credit:
             safe = credit.replace(":", "\\:").replace("'", "")

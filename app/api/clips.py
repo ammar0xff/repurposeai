@@ -63,7 +63,7 @@ def rerender(cid: str, body: RerenderIn, db=Depends(db_session),
     rdr.render(pipe._src_path(db.query(Project).filter_by(id=c.project_id).first()),
                       start, end, words, tmp,
                       cfg.get("render_profile", "shorts_1080x1920"),
-                      body.reframe or cfg.get("reframe", "center"),
+                      body.reframe or cfg.get("reframe", "smart"),
                       body.caption_style or cfg.get("caption_style", "bold"),
                       cfg.get("credit", ""))
     key = project_key(c.project_id, "clips", f"{c.id}-v{int(__import__('time').time())}.mp4")

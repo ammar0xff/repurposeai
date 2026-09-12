@@ -297,7 +297,7 @@ class Pipeline:
         """Resolve timestamps + render + validate + metadata. Resumable per clip."""
         cfg = project.config or {}
         profile = cfg.get("render_profile", "shorts_1080x1920")
-        reframe = cfg.get("reframe", "center")
+        reframe = cfg.get("reframe", "smart")
         style = cfg.get("caption_style", "bold")
         tr = self.db.query(Transcript).filter_by(project_id=project.id).first()
         words = tr.words if tr else []

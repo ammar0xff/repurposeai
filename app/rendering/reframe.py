@@ -100,8 +100,22 @@ def get_strategy(name: str, **kw) -> ReframingStrategy:
     return CenterStrategy()
 
 
-def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float) -> str:
-    """ffmpeg crop expression preserving aspect via center-biased window."""
+def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float,
+                duration: float = 0.0) -> str:
+    """Animated Ken Burns crop: eased push-in toward the anchor column.
+
+    The window starts lightly zoomed out, centered on `anchor`, and eases to
+    the exact target aspect over `duration` seconds, so the frame never
+    freezes on one spot. `duration <= 0` keeps the historical static crop
+    (tests / manual renders).
+    """
     anchor = max(0.0, min(1.0, anchor))
-    return (f"crop={dst_w}/{dst_h}*ih:ih:x='(in_w-out_w)*{anchor:.3f}':y=0,"
-            f"scale={dst_w}:{dst_h}")
+    war = dst_w / dst_h
+    if duration and duration > 0:
+        z = f"{1.06:.4f}-{0.06:.4f}*(t/{duration:.4f})*(2-t/{duration:.4f})"
+        expr = (f"crop=w='min(iw-2,floor(ih*{war:.4f}*({z})/2)*2)':"
+                f"h='min(ih-2,floor(ih*({z})/2)*2)':"
+                f"x='(iw-ow)*{anchor:.3f}':y=(ih-oh)/2")
+    else:
+        expr = f"crop={war:.4f}*ih:ih:x='(in_w-out_w)*{anchor:.3f}':y=0"
+    return f"{expr},scale={dst_w}:{dst_h}:flags=lanczos"
