@@ -156,10 +156,10 @@ def _track_expr(track: list[tuple[float, float]]) -> str:
         t0, a0 = track[i]
         t1, a1 = track[i + 1]
         m = (a1 - a0) / (t1 - t0) if t1 > t0 else 0.0
-        terms.append(f"({a0:.3f}+{m:.3f}*(t-{t0:.3f}))"
-                     f"*ge(t,{t0:.3f})*lt(t,{t1:.3f})")
+        terms.append(f"({a0:.3f}{m:+.3f}*(t-{t0:.3f}))"
+                     f"*gte(t,{t0:.3f})*lt(t,{t1:.3f})")
     t_last, a_last = track[-1]
-    terms.append(f"{a_last:.3f}*ge(t,{t_last:.3f})")
+    terms.append(f"{a_last:.3f}*gte(t,{t_last:.3f})")
     return "+".join(terms)
 
 
