@@ -78,3 +78,25 @@ def test_pairwise_step_totals_telescope_to_full():
             [acc, durations[i]], [None, transitions[i]], [0.0, tds[i]])
         acc = step_total
     assert abs(acc - full) < 1e-6
+
+
+def test_master_audio_adds_loudnorm_and_limiter():
+    f, v, a, total = montage_filter([5.0, 5.0], [None, "crossfade"],
+                                    [0.0, 0.8], master_audio=True)
+    assert "loudnorm=I=-14:TP=-1.5:LRA=11" in f
+    assert "alimiter=limit=0.891" in f
+    assert a == "[amaster]" and v == "[x1]"
+    assert total == pytest.approx(9.2)
+
+
+def test_master_audio_single_item():
+    f, v, a, total = montage_filter([5.0], [None], [0.0], master_audio=True)
+    assert "loudnorm=I=-14:TP=-1.5:LRA=11" in f
+    assert "alimiter=limit=0.891" in f
+    assert a == "[amaster]" and v == "[v0]"
+    assert total == 5.0
+
+
+def test_no_mastering_by_default():
+    f, *_ = montage_filter([5.0, 5.0], [None, "crossfade"], [0.0, 0.8])
+    assert "loudnorm" not in f and "alimiter" not in f

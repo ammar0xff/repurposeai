@@ -322,7 +322,8 @@ class Pipeline:
                 import os
                 tmp = f"/tmp/rpa-clip-{r.id}.mp4"
                 rdr.render(self._src_path(project), rs, re, words, tmp,
-                                  profile, reframe, style, cfg.get("credit", ""))
+                                  profile, reframe, style, cfg.get("credit", ""),
+                                  loudnorm=True)
                 self.storage.put_file(key, tmp)
                 # captions validation needs the .ass sidecar beside the clip
                 ass_tmp = Path(tmp).with_suffix(".ass")

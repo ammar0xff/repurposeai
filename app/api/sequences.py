@@ -148,7 +148,7 @@ def render(pid: str, body: SequenceRenderIn, db=Depends(db_session),
             else:
                 tmp = f"/tmp/rpa-montage-{seq.id[:8]}-{i}.mp4"
                 rdr.render(src, start, end, words, tmp, profile,
-                           reframe, style, credit)
+                           reframe, style, credit, loudnorm=True)
                 tmp_files.append(tmp)
                 inputs.append(tmp)
             transitions.append((item.get("transition") or body_trans or DEFAULT_TRANSITION)

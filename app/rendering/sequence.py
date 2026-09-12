@@ -39,26 +39,42 @@ def xfade_name(transition: str | None) -> str | None:
     return TRANSITIONS.get(t, t)
 
 
+LOUDNORM = "loudnorm=I=-14:TP=-1.5:LRA=11"
+LIMIT_GAIN = 0.891  # ~ -1 dBFS ceiling so xfade overlaps never clip
+
+
 def montage_filter(durations: list[float], transitions: list[str | None],
-                   trans_durations: list[float], fps: int = 30) -> tuple[str, str, str, float]:
+                   trans_durations: list[float], fps: int = 30,
+                   master_audio: bool = False) -> tuple[str, str, str, float]:
     """Build one filter_complex string stitching N inputs. No binary involved.
 
     durations[i] is input i's length in seconds; transitions[i] (i>=1) fades
     input i in over trans_durations[i]. Returns
     (filter_complex, vlabel, alabel, final_duration).
+
+    With `master_audio=True` each input's audio is loudness-normalised to
+    -14 LUFS / -1.5 dBTP before mixing, and the final mix passes through a
+    limiter (-1 dBFS). Summed acrossfade overlaps then cannot clip.
     """
     n = len(durations)
     if n == 0:
         raise ValueError("montage needs at least one item")
     graph: list[str] = []
     for i in range(n):
+        audio = (f"atrim=duration={durations[i]:.4f},"
+                 f"asetpts=PTS-STARTPTS,"
+                 f"aformat=sample_fmts=fltp:channel_layouts=stereo")
+        if master_audio:
+            audio += f",{LOUDNORM}"
         graph.append(f"[{i}:v]trim=duration={durations[i]:.4f},"
                      f"setpts=PTS-STARTPTS,fps={fps},format=yuv420p[v{i}]")
-        graph.append(f"[{i}:a]atrim=duration={durations[i]:.4f},"
-                     f"asetpts=PTS-STARTPTS,"
-                     f"aformat=sample_fmts=fltp:channel_layouts=stereo[a{i}]")
+        graph.append(f"[{i}:a]{audio}[a{i}]")
     if n == 1:
-        return ";".join(graph), "[v0]", "[a0]", durations[0]
+        built = ";".join(graph)
+        if master_audio:
+            built += ";[a0]alimiter=limit=0.891[amaster]"
+            return built, "[v0]", "[amaster]", durations[0]
+        return built, "[v0]", "[a0]", durations[0]
     vid_in, aud_in, total = "[v0]", "[a0]", durations[0]
     for i in range(1, n):
         name = xfade_name(transitions[i] if i < len(transitions) else DEFAULT_TRANSITION)
@@ -72,7 +88,11 @@ def montage_filter(durations: list[float], transitions: list[str | None],
                      f"offset={offset:.4f}{vout}")
         graph.append(f"{aud_in}[a{i}]acrossfade=d={td:.4f}:c1=tri:c2=tri{aout}")
         vid_in, aud_in, total = vout, aout, total + durations[i] - td
-    return ";".join(graph), vid_in, aud_in, total
+    built = ";".join(graph)
+    if master_audio:
+        built += f";[{aud_in}]alimiter=limit={LIMIT_GAIN}[amaster]"
+        return built, vid_in, "[amaster]", total
+    return built, vid_in, aud_in, total
 
 
 def _duration(path: str, ffprobe_bin: str = "ffprobe") -> float:
@@ -124,7 +144,8 @@ def render_sequence(inputs: list[str], transitions: list[str | None],
 
     if len(inputs) <= 2:
         fchain, vlabel, alabel, _ = montage_filter(durations, transitions,
-                                                   trans_durations, fps)
+                                                   trans_durations, fps,
+                                                   master_audio=True)
         _run_stitch(inputs, fchain, vlabel, alabel, out, ffmpeg, crf, preset)
     else:
         step = inputs[0]
@@ -136,7 +157,8 @@ def render_sequence(inputs: list[str], transitions: list[str | None],
                 td = trans_durations[i] if i < len(trans_durations) else DEFAULT_TRANSITION_DURATION
                 name = transitions[i] if i < len(transitions) else DEFAULT_TRANSITION
                 fchain, vlabel, alabel, _ = montage_filter(
-                    [sd, durations[i]], [None, name], [0.0, td], fps)
+                    [sd, durations[i]], [None, name], [0.0, td], fps,
+                    master_audio=True)
                 _run_stitch([step, inputs[i]], fchain, vlabel, alabel,
                             step_out, ffmpeg, crf, preset)
                 intermediates.append(step_out)

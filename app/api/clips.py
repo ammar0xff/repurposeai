@@ -65,7 +65,7 @@ def rerender(cid: str, body: RerenderIn, db=Depends(db_session),
                       cfg.get("render_profile", "shorts_1080x1920"),
                       body.reframe or cfg.get("reframe", "smart"),
                       body.caption_style or cfg.get("caption_style", "bold"),
-                      cfg.get("credit", ""))
+                      cfg.get("credit", ""), loudnorm=True)
     key = project_key(c.project_id, "clips", f"{c.id}-v{int(__import__('time').time())}.mp4")
     st = pipe.storage.put_file(key, tmp)
     import shutil

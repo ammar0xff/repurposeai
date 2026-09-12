@@ -181,9 +181,11 @@ def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float,
     """Animated Ken Burns pan: slow drift onto the anchor column.
 
     `track` (optional, clip-local (t, anchor) pairs) makes the window follow
-    the subject with a piecewise-linear pan; otherwise it eases a small drift
-    onto `anchor`. The frame is lightly upscaled once (6%) and the fixed-aspect
-    window pans over time, so the clip is never a frozen single spot.
+    the subject with a piecewise-linear pan; a gentle additive drift is layered
+    on top so a fixed subject never reads as a frozen still. Without a track
+    the window eases a wider drift onto `anchor`. The frame is upscaled once
+    (18%) and the fixed-aspect window pans over time, so the clip is never a
+    frozen single spot.
     `duration <= 0` keeps the historical static crop (tests / manual renders).
     Crop w/h stay constant - ffmpeg rejects time-varying crop sizes mid-stream.
     """
@@ -192,13 +194,14 @@ def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float,
     if duration and duration > 0:
         if track and len(track) >= 2:
             x = _track_expr(track)
+            x = f"{x}+0.10*((t/{duration:.4f})-0.5)"
         else:
-            a_from = max(0.0, min(1.0, anchor - 0.04))
+            a_from = max(0.0, min(1.0, anchor - 0.22))
             x = (f"({a_from:.3f}+{anchor - a_from:.3f}*"
                  f"(t/{duration:.4f}))")
-        expr = (f"scale=trunc(iw*1.06/2)*2:trunc(ih*1.06/2)*2,"
+        expr = (f"scale=trunc(iw*1.18/2)*2:trunc(ih*1.18/2)*2,"
                 f"crop={war:.4f}*ih:ih:"
-                f"x='(iw-ow)*({x})':y=(ih-oh)/2")
+                f"x='(iw-ow)*max(0,min(1,{x}))':y=(ih-oh)/2")
     else:
         expr = f"crop={war:.4f}*ih:ih:x='(in_w-out_w)*{anchor:.3f}':y=0"
     return f"{expr},scale={dst_w}:{dst_h}:flags=lanczos"

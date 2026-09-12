@@ -43,7 +43,7 @@ class Renderer:
                "-vf", vf, "-c:v", "libx264", "-preset", self.preset,
                "-crf", str(self.crf), "-c:a", "aac", "-b:a", "128k"]
         if loudnorm:
-            cmd += ["-af", "loudnorm"]
+            cmd += ["-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
         cmd += ["-movflags", "+faststart", "-shortest", out]
         try:
             subprocess.run(cmd, check=True, timeout=1800)

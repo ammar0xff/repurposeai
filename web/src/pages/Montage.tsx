@@ -136,6 +136,16 @@ export default function Montage() {
         setSeqId(s.id);
         setItems(s.items || []);
         setValidation(s.rendered_validation || {});
+        if (s.rendered_key) {
+          void sequenceDownloadUrl(pid)
+            .then((u) =>
+              setDlUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return u;
+              }),
+            )
+            .catch(() => {});
+        }
       })
       .catch(() => {});
   }, [pid]);
@@ -322,6 +332,7 @@ export default function Montage() {
   }, [pid, items, dirty, busy, saveSeq]);
 
   const checks = validation.checks ?? {};
+  const renderStatus = renderResp?.validation?.status ?? validation.status ?? "";
 
   return (
     <div>
@@ -394,6 +405,33 @@ export default function Montage() {
       ) : (
         <div className="grid items-start gap-5 lg:grid-cols-[1.5fr_1fr]">
           <div>
+            {dlUrl ? (
+              <Panel className="mb-4">
+                <PanelTitle hint="what the last stitch produced">
+                  Preview
+                </PanelTitle>
+                {renderStatus ? (
+                  <div className="mono mb-2 flex items-center gap-2 text-[11px] text-faint">
+                    {renderResp?.duration != null ? (
+                      <span>renders {fmtTime(renderResp.duration)}</span>
+                    ) : null}
+                    <span className="flex items-center gap-1.5">
+                      <Dot tone={renderStatus === "READY" ? "ok" : "bad"} />
+                      {renderStatus.toLowerCase()}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="flex justify-center">
+                  <video
+                    src={dlUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-[9/16] w-44 rounded-lg border border-line bg-black"
+                  />
+                </div>
+              </Panel>
+            ) : null}
             <Panel>
               <PanelTitle hint={items.length ? "drag to reorder" : ""}>
                 Cut strip
