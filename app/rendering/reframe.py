@@ -102,20 +102,22 @@ def get_strategy(name: str, **kw) -> ReframingStrategy:
 
 def crop_filter(src_w: int, src_h: int, dst_w: int, dst_h: int, anchor: float,
                 duration: float = 0.0) -> str:
-    """Animated Ken Burns crop: eased push-in toward the anchor column.
+    """Animated Ken Burns pan: slow drift onto the anchor column.
 
-    The window starts lightly zoomed out, centered on `anchor`, and eases to
-    the exact target aspect over `duration` seconds, so the frame never
-    freezes on one spot. `duration <= 0` keeps the historical static crop
-    (tests / manual renders).
+    The frame is lightly upscaled once (6%) and the fixed-aspect crop window
+    eases horizontally onto `anchor` over `duration` seconds, so the clip is
+    never a frozen single spot. `duration <= 0` keeps the historical static
+    crop (tests / manual renders). Crop w/h stay constant - ffmpeg rejects
+    time-varying crop sizes mid-stream.
     """
     anchor = max(0.0, min(1.0, anchor))
     war = dst_w / dst_h
     if duration and duration > 0:
-        z = f"{1.06:.4f}-{0.06:.4f}*(t/{duration:.4f})*(2-t/{duration:.4f})"
-        expr = (f"crop=w='min(iw-2,floor(ih*{war:.4f}*({z})/2)*2)':"
-                f"h='min(ih-2,floor(ih*({z})/2)*2)':"
-                f"x='(iw-ow)*{anchor:.3f}':y=(ih-oh)/2")
+        a_from = max(0.0, min(1.0, anchor - 0.04))
+        expr = (f"scale=trunc(iw*1.06/2)*2:trunc(ih*1.06/2)*2,"
+                f"crop={war:.4f}*ih:ih:"
+                f"x='(iw-ow)*({a_from:.3f}+{anchor - a_from:.3f}*"
+                f"(t/{duration:.4f}))':y=(ih-oh)/2")
     else:
         expr = f"crop={war:.4f}*ih:ih:x='(in_w-out_w)*{anchor:.3f}':y=0"
     return f"{expr},scale={dst_w}:{dst_h}:flags=lanczos"
