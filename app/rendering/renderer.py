@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..captions.engine import to_ass
 from ..core.errors import MediaError
-from .reframe import crop_filter, get_strategy
+from .reframe import crop_filter, face_track, get_strategy
 
 PROFILES = {
     "shorts_1080x1920": {"w": 1080, "h": 1920},
@@ -28,10 +28,11 @@ class Renderer:
         spec = PROFILES.get(profile, PROFILES["shorts_1080x1920"])
         anchor = get_strategy(reframe).anchor(source, start, end, 0, 0)
         dur = max(end - start, 0.01)
+        track = face_track(source, start, end) if reframe in ("face", "smart") else None
         ass = Path(out).with_suffix(".ass")
         ass.write_text(to_ass(words, start, end, caption_style),
                        encoding="utf-8")
-        vf = crop_filter(0, 0, spec["w"], spec["h"], anchor, dur)
+        vf = crop_filter(0, 0, spec["w"], spec["h"], anchor, dur, track)
         vf += f",subtitles='{ass}':force_style='FontSize=64'"
         if credit:
             safe = credit.replace(":", "\\:").replace("'", "")

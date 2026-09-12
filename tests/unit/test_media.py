@@ -54,6 +54,12 @@ def test_reframe_center_and_chain():
     assert get_strategy("nope").anchor("", 0, 1, 0, 0) == 0.5
     from app.rendering.reframe import crop_filter
     assert "1080:1920" in crop_filter(0, 0, 1080, 1920, 0.5)
+    static = crop_filter(0, 0, 1080, 1920, 0.5, 60.0)
+    assert "1080:1920" in static and "between" not in static
+    tracked = crop_filter(0, 0, 1080, 1920, 0.5, 60.0,
+                          track=[(0.0, 0.2), (30.0, 0.6), (60.0, 0.9)])
+    assert "1080:1920" in tracked and "ge(t,0.000)" in tracked
+    assert "lt(t,30.000)" in tracked and tracked.count("+") >= 2
 
 
 def test_metadata_prompt_versioned():
