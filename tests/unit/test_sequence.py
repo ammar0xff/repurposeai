@@ -61,3 +61,20 @@ def test_default_transition_applied_when_missing():
 def test_empty_raises():
     with pytest.raises(ValueError):
         montage_filter([], [None], [0.0])
+
+
+def test_pairwise_step_totals_telescope_to_full():
+    """Chunked stitching (1+2, then +3, ...) must yield the same running
+    duration as one N-input filter graph, so intermediate re-encodes cannot
+    drift the reported montage duration."""
+    durations = [20.0, 10.0, 15.0, 12.0, 30.0]
+    transitions = [None, "crossfade", "cut", "zoom", "crossfade"]
+    tds = [0.0, 0.8, 0.8, 1.2, 0.5]
+    _, _, _, full = montage_filter(durations, transitions, tds)
+
+    acc = durations[0]
+    for i in range(1, len(durations)):
+        _, _, _, step_total = montage_filter(
+            [acc, durations[i]], [None, transitions[i]], [0.0, tds[i]])
+        acc = step_total
+    assert abs(acc - full) < 1e-6

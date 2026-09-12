@@ -4,6 +4,7 @@ Transitions apply *into* an item from the one before it (item 0's transition
 is ignored). Pure filter-fragments (xfade) are built by montage_filter so the
 stitching math is unit-testable without ffmpeg.
 """
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -82,17 +83,8 @@ def _duration(path: str, ffprobe_bin: str = "ffprobe") -> float:
     return dur
 
 
-def render_sequence(inputs: list[str], transitions: list[str | None],
-                    trans_durations: list[float], out: str,
-                    fps: int = 30, ffmpeg: str = "ffmpeg",
-                    crf: int = 20, preset: str = "veryfast") -> dict:
-    """Transcode inputs into one stitched montage at <out>. Reuses existing
-    rendered clips; re-encodes only the seam via xfade/acrossfade."""
-    if not inputs:
-        raise MediaError("Montage needs at least one item.")
-    t0 = time.time()
-    durations = [_duration(p, _probe_bin(ffmpeg)) for p in inputs]
-    fchain, vlabel, alabel, total = montage_filter(durations, transitions, trans_durations, fps)
+def _run_stitch(inputs: list[str], fchain: str, vlabel: str, alabel: str,
+                out: str, ffmpeg: str, crf: int, preset: str) -> None:
     cmd = [ffmpeg, "-y", "-v", "error"]
     for p in inputs:
         cmd += ["-i", p]
@@ -109,12 +101,67 @@ def render_sequence(inputs: list[str], transitions: list[str | None],
     except subprocess.CalledProcessError as e:
         raise MediaError("FFmpeg could not stitch the montage.",
                          details=(e.stderr or (e.stdout or ""))[-500:]) from e
+
+
+def render_sequence(inputs: list[str], transitions: list[str | None],
+                    trans_durations: list[float], out: str,
+                    fps: int = 30, ffmpeg: str = "ffmpeg",
+                    crf: int = 20, preset: str = "veryfast") -> dict:
+    """Transcode inputs into one stitched montage at <out>.
+
+    xfade holds the whole previous stream in memory while it waits for the
+    transition offset, so a single N-input filter graph needs ~1.5 streams of
+    decoded frames for every input (60s @ 1080x1920 ~= 5.6 GB for 5 clips).
+    This box has 2 GB, so for N > 2 we stitch pairwise, chaining each result
+    into the next step so the encode is always bounded to two streams
+    (re-encoding only the seam each time).
+    """
+    if not inputs:
+        raise MediaError("Montage needs at least one item.")
+    t0 = time.time()
+    durations = [_duration(p, _probe_bin(ffmpeg)) for p in inputs]
+    _, _, _, total = montage_filter(durations, transitions, trans_durations, fps)
+
+    if len(inputs) <= 2:
+        fchain, vlabel, alabel, _ = montage_filter(durations, transitions,
+                                                   trans_durations, fps)
+        _run_stitch(inputs, fchain, vlabel, alabel, out, ffmpeg, crf, preset)
+    else:
+        step = inputs[0]
+        intermediates: list[str] = []
+        try:
+            for i in range(1, len(inputs)):
+                sd = _duration(step, _probe_bin(ffmpeg))
+                step_out = f"{out}.mid{i - 1}.mp4"
+                td = trans_durations[i] if i < len(trans_durations) else DEFAULT_TRANSITION_DURATION
+                name = transitions[i] if i < len(transitions) else DEFAULT_TRANSITION
+                fchain, vlabel, alabel, _ = montage_filter(
+                    [sd, durations[i]], [None, name], [0.0, td], fps)
+                _run_stitch([step, inputs[i]], fchain, vlabel, alabel,
+                            step_out, ffmpeg, crf, preset)
+                intermediates.append(step_out)
+                if i > 1:
+                    _unlink(intermediates[-2])
+                step = step_out
+            os.replace(step, out)
+        finally:
+            for f in intermediates:
+                _unlink(f)
+
     size = Path(out).stat().st_size
     if size == 0:
         raise MediaError("Montage render produced a zero-byte file.")
     return {"input_durations": durations, "size": size,
             "final_duration": round(total, 2),
             "elapsed": round(time.time() - t0, 2)}
+
+
+def _unlink(path: str) -> None:
+    try:
+        if os.path.exists(path):
+            os.unlink(path)
+    except OSError:
+        pass
 
 
 def _probe_bin(ffmpeg: str) -> str:
