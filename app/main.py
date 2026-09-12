@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from .api import auth, campaigns, clips, jobs, projects, system
+from .api import auth, campaigns, clips, jobs, projects, sequences, system
 from .config.settings import get_settings
 from .core.errors import RepurposeError
 from .core.ids import new_id
@@ -60,6 +60,7 @@ app.include_router(campaigns.router)
 app.include_router(projects.router)
 app.include_router(jobs.router)
 app.include_router(clips.router)
+app.include_router(sequences.router)
 app.include_router(system.router)
 
 

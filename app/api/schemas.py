@@ -55,3 +55,32 @@ class ExportOut(BaseModel):
     id: str
     storage_key: str
     manifest: dict = {}
+
+
+class SequenceItemIn(BaseModel):
+    clip_id: str
+    start: float | None = None
+    end: float | None = None
+    reframe: str | None = None
+    caption_style: str | None = None
+    credit: str | None = None
+    transition: str | None = None
+    transition_duration: float | None = None
+
+
+class SequenceIn(BaseModel):
+    name: str | None = None
+    items: list[SequenceItemIn] | None = None
+
+
+class SequenceOut(BaseModel):
+    id: str
+    name: str
+    items: list[dict] = []
+    rendered_key: str = ""
+    rendered_validation: dict = {}
+
+
+class SequenceRenderIn(BaseModel):
+    transition: str | None = None
+    transition_duration: float | None = None

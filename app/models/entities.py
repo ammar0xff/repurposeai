@@ -153,6 +153,18 @@ class Export(Base, UUIDPk, Timestamped):
     manifest: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class Sequence(Base, UUIDPk, Timestamped):
+    """Montage timeline: ordered items referencing rendered clips + per-item
+    overrides (trim/reframe/caption/credit) and the transition into each item."""
+    __tablename__ = "sequences"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(64), default="local")
+    name: Mapped[str] = mapped_column(String(255), default="Montage")
+    items: Mapped[list] = mapped_column(JSON, default=list)
+    rendered_key: Mapped[str] = mapped_column(String(512), default="")
+    rendered_validation: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class User(Base, UUIDPk, Timestamped):
     __tablename__ = "users"
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
